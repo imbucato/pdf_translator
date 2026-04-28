@@ -1,0 +1,32 @@
+name: pdf_translator
+description: App Flutter per aprire PDF e tradurre il testo selezionato.
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  syncfusion_flutter_pdfviewer: ^33.2.3
+  file_picker: ^11.0.2
+  http: ^1.6.0
+  flutter_dotenv: ^5.2.1
+  cupertino_icons: ^1.0.8
+  shared_preferences: ^2.5.5
+  path_provider: ^2.1.5
+  
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - .env
