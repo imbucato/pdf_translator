@@ -9,6 +9,7 @@ import '../models/history_item.dart';
 import '../services/ai_service.dart';
 import '../services/export_service.dart';
 import '../services/storage_service.dart';
+import 'result_page.dart';
 
 class PdfTranslatorPage extends StatefulWidget {
   const PdfTranslatorPage({super.key});
@@ -645,6 +646,26 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 6),
+                    const SizedBox(height: 8),
+
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.open_in_full),
+                        label: const Text('Apri risultato'),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ResultPage(
+                                title: resultTitle,
+                                text: resultText,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxHeight: 180),
                       child: SingleChildScrollView(
