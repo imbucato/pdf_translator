@@ -10,6 +10,7 @@ import '../services/ai_service.dart';
 import '../services/export_service.dart';
 import '../services/storage_service.dart';
 import 'result_page.dart';
+import '../services/text_cleaner_service.dart';
 
 class PdfTranslatorPage extends StatefulWidget {
   const PdfTranslatorPage({super.key});
@@ -117,7 +118,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   }
 
   String limitedSelectedText() {
-    final text = selectedText.trim();
+    final text = TextCleanerService.normalizePdfText(selectedText);
 
     if (text.length <= 1200) return text;
 
