@@ -31,6 +31,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   String selectedText = '';
   String resultText = '';
   String resultTitle = 'Risultato';
+  String historySearch = '';
 
   bool isLoading = false;
   bool autoTranslate = false;
@@ -306,8 +307,23 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   }
 
   Future<void> exportHistory(String type) async {
+    final query = historySearch.trim().toLowerCase();
+
     final currentPdfHistory = history.where((item) {
-      return item.pdfKey == pdfStorageKey;
+      final belongsToCurrentPdf = item.pdfKey == pdfStorageKey;
+
+      if (!belongsToCurrentPdf) return false;
+      if (query.isEmpty) return true;
+
+      final searchableText = [
+        item.action,
+        item.provider,
+        item.original,
+        item.result,
+        item.page.toString(),
+      ].join(' ').toLowerCase();
+
+      return searchableText.contains(query);
     }).toList();
 
     if (currentPdfHistory.isEmpty) return;
@@ -339,6 +355,25 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
             height: MediaQuery.of(context).size.height * 0.75,
             child: Column(
               children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.search),
+                      labelText: 'Cerca nello storico',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        historySearch = value;
+                      });
+
+                      Navigator.pop(context);
+                      showHistory();
+                    },
+                  ),
+                ),
+
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: Wrap(
