@@ -389,24 +389,57 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
                           itemBuilder: (context, index) {
                             final item = currentPdfHistory[index];
 
-                            return ListTile(
-                              title: Text(
-                                '${item.action} Â· ${item.provider} - pagina ${item.page}',
+                            return Card(
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
                               ),
-                              subtitle: Text(
-                                item.result,
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              onTap: () {
-                                Navigator.pop(context);
+                              child: ListTile(
+                                title: Text(
+                                  '${item.action} · ${item.provider} - pagina ${item.page}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 6),
+                                    const Text(
+                                      'Originale:',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      item.original,
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      'Risultato:',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      item.result,
+                                      maxLines: 4,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                                onTap: () {
+                                  Navigator.pop(context);
 
-                                setState(() {
-                                  resultTitle =
-                                      '${item.action} Â· ${item.provider} - pagina ${item.page}';
-                                  resultText = item.result;
-                                });
-                              },
+                                  setState(() {
+                                    resultTitle =
+                                        '${item.action} · ${item.provider} - pagina ${item.page}';
+                                    resultText = item.result;
+                                  });
+                                },
+                              ),
                             );
                           },
                         ),
