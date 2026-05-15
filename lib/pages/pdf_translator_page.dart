@@ -434,10 +434,21 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
                                   Navigator.pop(context);
 
                                   setState(() {
+                                    currentPage = item.page;
                                     resultTitle =
                                         '${item.action} · ${item.provider} - pagina ${item.page}';
                                     resultText = item.result;
                                   });
+
+                                  Future.delayed(
+                                    const Duration(milliseconds: 300),
+                                    () {
+                                      if (mounted) {
+                                        pdfController.jumpToPage(item.page);
+                                        saveCurrentPage();
+                                      }
+                                    },
+                                  );
                                 },
                               ),
                             );
