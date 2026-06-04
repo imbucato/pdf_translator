@@ -11,6 +11,7 @@ import '../services/export_service.dart';
 import '../services/storage_service.dart';
 import 'result_page.dart';
 import '../services/text_cleaner_service.dart';
+import 'history_page.dart';
 
 class PdfTranslatorPage extends StatefulWidget {
   const PdfTranslatorPage({super.key});
@@ -341,158 +342,67 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   }
 
   void showHistory() {
-    final currentPdfHistory = history.where((item) {
-      return item.pdfKey == pdfStorageKey;
-    }).toList();
-
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
       builder: (_) {
-        return SafeArea(
-          child: SizedBox(
-            height: MediaQuery.of(context).size.height * 0.75,
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search),
-                      labelText: 'Cerca nello storico',
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (value) {
-                      setState(() {
-                        historySearch = value;
-                      });
+        return HistoryPage(
+          history: history,
+          currentPdfKey: pdfStorageKey,
+          onTapItem: (item) {
+            Navigator.pop(context);
 
-                      Navigator.pop(context);
-                      showHistory();
-                    },
-                  ),
-                ),
+            setState(() {
+              currentPage = item.page;
+              resultTitle =
+                  '${item.action} · ${item.provider} - pagina ${item.page}';
+              resultText = item.result;
+            });
 
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      FilledButton.icon(
-                        onPressed: () => exportHistory('txt'),
-                        icon: const Icon(Icons.text_snippet),
-                        label: const Text('TXT'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: () => exportHistory('markdown'),
-                        icon: const Icon(Icons.description),
-                        label: const Text('Markdown'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: () => exportHistory('word'),
-                        icon: const Icon(Icons.article),
-                        label: const Text('Word HTML'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: () async {
-                          setState(() {
-                            history.removeWhere(
-                              (item) => item.pdfKey == pdfStorageKey,
-                            );
-                          });
+            Future.delayed(const Duration(milliseconds: 300), () {
+              if (mounted) {
+                pdfController.jumpToPage(item.page);
+                saveCurrentPage();
+              }
+            });
+          },
+          onDeleteItem: (item) async {
+            setState(() {
+              history.remove(item);
+            });
 
-                          await storageService.saveHistory(history);
+            await storageService.saveHistory(history);
 
-                          if (mounted) Navigator.pop(context);
-                        },
-                        icon: const Icon(Icons.delete),
-                        label: const Text('Svuota PDF'),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(),
-                Expanded(
-                  child: currentPdfHistory.isEmpty
-                      ? const Center(
-                          child: Text('Nessuna cronologia per questo PDF'),
-                        )
-                      : ListView.builder(
-                          itemCount: currentPdfHistory.length,
-                          itemBuilder: (context, index) {
-                            final item = currentPdfHistory[index];
+            if (!mounted) return;
 
-                            return Card(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              child: ListTile(
-                                title: Text(
-                                  '${item.action} · ${item.provider} - pagina ${item.page}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const SizedBox(height: 6),
-                                    const Text(
-                                      'Originale:',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Text(
-                                      item.original,
-                                      maxLines: 3,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    const Text(
-                                      'Risultato:',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Text(
-                                      item.result,
-                                      maxLines: 4,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                                onTap: () {
-                                  Navigator.pop(context);
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Voce eliminata')));
+          },
+          onClearPdfHistory: () async {
+            setState(() {
+              history.removeWhere((item) => item.pdfKey == pdfStorageKey);
+            });
 
-                                  setState(() {
-                                    currentPage = item.page;
-                                    resultTitle =
-                                        '${item.action} · ${item.provider} - pagina ${item.page}';
-                                    resultText = item.result;
-                                  });
+            await storageService.saveHistory(history);
 
-                                  Future.delayed(
-                                    const Duration(milliseconds: 300),
-                                    () {
-                                      if (mounted) {
-                                        pdfController.jumpToPage(item.page);
-                                        saveCurrentPage();
-                                      }
-                                    },
-                                  );
-                                },
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          ),
+            if (mounted) Navigator.pop(context);
+          },
+          onExportHistory: (type, filteredHistory) async {
+            if (filteredHistory.isEmpty) return;
+
+            final file = await exportService.exportHistory(
+              history: filteredHistory,
+              type: type,
+            );
+
+            if (!mounted) return;
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Esportato in: ${file.path}')),
+            );
+          },
         );
       },
     );
