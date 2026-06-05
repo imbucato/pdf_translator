@@ -511,6 +511,21 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
     });
   }
 
+  void resetToHome() {
+    autoTranslateTimer?.cancel();
+
+    setState(() {
+      pdfFile = null;
+      pdfStorageKey = null;
+      selectedText = '';
+      resultText = '';
+      resultTitle = 'Risultato';
+      currentPage = 1;
+      isLoading = false;
+      lastAutoTranslateKey = '';
+    });
+  }
+
   void openResult() {
     Navigator.push(
       context,
@@ -528,6 +543,11 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
       appBar: AppBar(
         title: const Text('PDF Translator'),
         actions: [
+          IconButton(
+            tooltip: 'Home',
+            icon: const Icon(Icons.home_outlined),
+            onPressed: resetToHome,
+          ),
           IconButton(
             tooltip: 'Credito',
             icon: const Icon(Icons.account_balance_wallet),

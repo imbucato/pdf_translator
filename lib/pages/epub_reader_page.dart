@@ -419,6 +419,16 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     });
   }
 
+  void resetToHome() {
+    _autoTranslateTimer?.cancel();
+    _savePositionDebounce?.cancel();
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const PdfTranslatorPage()),
+    );
+  }
+
   Future<void> _restoreReadingPosition() async {
     final offset = await _storageService.loadSavedEpubScrollOffset(
       _epubStorageKey,
@@ -496,6 +506,11 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
         title: Text(widget.book.title, overflow: TextOverflow.ellipsis),
         actions: [
           IconButton(
+            tooltip: 'Home',
+            icon: const Icon(Icons.home_outlined),
+            onPressed: resetToHome,
+          ),
+          IconButton(
             tooltip: 'Credito',
             icon: const Icon(Icons.account_balance_wallet),
             onPressed: showCreditInfo,
@@ -518,7 +533,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
           if (selectedText.trim().isNotEmpty)
             IconButton(
               tooltip: 'Cancella selezione',
-              icon: const Icon(Icons.close),
+              icon: const Icon(Icons.backspace_outlined),
               onPressed: _clearSelection,
             ),
           IconButton(
