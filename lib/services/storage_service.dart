@@ -56,6 +56,25 @@ class StorageService {
     await prefs.setInt(pdfStorageKey, currentPage);
   }
 
+  String makeEpubStorageKey(String title) {
+    final normalizedTitle = title.trim().toLowerCase();
+
+    return 'epub_scroll_$normalizedTitle';
+  }
+
+  Future<double> loadSavedEpubScrollOffset(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(key) ?? 0;
+  }
+
+  Future<void> saveEpubScrollOffset({
+    required String epubStorageKey,
+    required double scrollOffset,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(epubStorageKey, scrollOffset);
+  }
+
   Future<List<HistoryItem>> loadHistory() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList('history') ?? [];

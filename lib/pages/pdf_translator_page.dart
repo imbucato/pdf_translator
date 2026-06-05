@@ -14,6 +14,9 @@ import '../services/text_cleaner_service.dart';
 import '../widgets/translation_panel.dart';
 import 'history_page.dart';
 
+import '../pages/epub_reader_page.dart';
+import '../services/epub_service.dart';
+
 class PdfTranslatorPage extends StatefulWidget {
   const PdfTranslatorPage({super.key});
 
@@ -109,6 +112,34 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
       currentPage = savedPage;
       lastAutoTranslateKey = '';
     });
+  }
+
+  Future<void> pickEpub() async {
+    final result = await fp.FilePicker.pickFiles(
+      type: fp.FileType.custom,
+      allowedExtensions: ['epub'],
+    );
+
+    if (result == null || result.files.single.path == null) return;
+
+    final file = File(result.files.single.path!);
+
+    try {
+      final book = await EpubService().readEpub(file);
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => EpubReaderPage(book: book)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Errore apertura EPUB: $e')));
+    }
   }
 
   Future<void> saveCurrentPage() async {
@@ -468,6 +499,11 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
             tooltip: 'Apri PDF',
             icon: const Icon(Icons.folder_open),
             onPressed: pickPdf,
+          ),
+          IconButton(
+            tooltip: 'Apri EPUB',
+            icon: const Icon(Icons.menu_book),
+            onPressed: pickEpub,
           ),
           IconButton(
             tooltip: 'Pulisci',
