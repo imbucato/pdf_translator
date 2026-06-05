@@ -99,9 +99,43 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
 
     if (result == null || result.files.single.path == null) return;
 
+    await openPdfPath(result.files.single.path!);
+  }
+
+  Future<void> pickEpub() async {
+    final result = await fp.FilePicker.pickFiles(
+      type: fp.FileType.custom,
+      allowedExtensions: ['epub'],
+    );
+
+    if (result == null || result.files.single.path == null) return;
+
+    await openEpubPath(result.files.single.path!);
+  }
+
+  Future<void> pickDocument() async {
+    final result = await fp.FilePicker.pickFiles(
+      type: fp.FileType.custom,
+      allowedExtensions: ['pdf', 'epub'],
+    );
+
+    if (result == null || result.files.single.path == null) return;
+
     final path = result.files.single.path!;
+    final extension = path.split('.').last.toLowerCase();
+
+    if (extension == 'pdf') {
+      await openPdfPath(path);
+    } else if (extension == 'epub') {
+      await openEpubPath(path);
+    }
+  }
+
+  Future<void> openPdfPath(String path) async {
     final key = await storageService.makePdfStorageKey(path);
     final savedPage = await storageService.loadSavedPage(key);
+
+    if (!mounted) return;
 
     setState(() {
       pdfStorageKey = key;
@@ -114,15 +148,8 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
     });
   }
 
-  Future<void> pickEpub() async {
-    final result = await fp.FilePicker.pickFiles(
-      type: fp.FileType.custom,
-      allowedExtensions: ['epub'],
-    );
-
-    if (result == null || result.files.single.path == null) return;
-
-    final file = File(result.files.single.path!);
+  Future<void> openEpubPath(String path) async {
+    final file = File(path);
 
     try {
       final book = await EpubService().readEpub(file);
@@ -496,14 +523,9 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
             onPressed: clearCache,
           ),
           IconButton(
-            tooltip: 'Apri PDF',
+            tooltip: 'Apri PDF o EPUB',
             icon: const Icon(Icons.folder_open),
-            onPressed: pickPdf,
-          ),
-          IconButton(
-            tooltip: 'Apri EPUB',
-            icon: const Icon(Icons.menu_book),
-            onPressed: pickEpub,
+            onPressed: pickDocument,
           ),
           IconButton(
             tooltip: 'Pulisci',
@@ -518,9 +540,9 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
             child: !hasPdf
                 ? Center(
                     child: ElevatedButton.icon(
-                      onPressed: pickPdf,
-                      icon: const Icon(Icons.picture_as_pdf),
-                      label: const Text('Apri PDF'),
+                      onPressed: pickDocument,
+                      icon: const Icon(Icons.folder_open),
+                      label: const Text('Apri PDF o EPUB'),
                     ),
                   )
                 : SfPdfViewer.file(
