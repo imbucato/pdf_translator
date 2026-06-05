@@ -17,6 +17,8 @@ class TranslationPanel extends StatelessWidget {
     required this.onShowActionPopup,
     required this.onAskAi,
     required this.onOpenResult,
+    this.locationLabel,
+    this.emptySelectionMessage,
   });
 
   final String selectedText;
@@ -31,11 +33,17 @@ class TranslationPanel extends StatelessWidget {
   final VoidCallback onShowActionPopup;
   final ValueChanged<String> onAskAi;
   final VoidCallback onOpenResult;
+  final String? locationLabel;
+  final String? emptySelectionMessage;
 
   @override
   Widget build(BuildContext context) {
     final hasSelection = selectedText.trim().isNotEmpty;
     final isLimited = selectedText.trim().length > 1200;
+    final selectedLocationLabel = locationLabel ?? 'pagina $currentPage';
+    final noSelectionMessage =
+        emptySelectionMessage ??
+        'Pagina $currentPage - seleziona una frase nel PDF';
 
     return Container(
       width: double.infinity,
@@ -82,8 +90,8 @@ class TranslationPanel extends StatelessWidget {
             ),
             Text(
               hasSelection
-                  ? 'Testo selezionato: ${selectedText.length} caratteri - pagina $currentPage'
-                  : 'Pagina $currentPage - seleziona una frase nel PDF',
+                  ? 'Testo selezionato: ${selectedText.length} caratteri - $selectedLocationLabel'
+                  : noSelectionMessage,
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             if (isLimited)

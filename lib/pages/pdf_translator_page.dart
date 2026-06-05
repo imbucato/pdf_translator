@@ -18,7 +18,9 @@ import '../pages/epub_reader_page.dart';
 import '../services/epub_service.dart';
 
 class PdfTranslatorPage extends StatefulWidget {
-  const PdfTranslatorPage({super.key});
+  final String? initialPdfPath;
+
+  const PdfTranslatorPage({super.key, this.initialPdfPath});
 
   @override
   State<PdfTranslatorPage> createState() => _PdfTranslatorPageState();
@@ -54,9 +56,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   @override
   void initState() {
     super.initState();
-    loadSettings();
-    loadHistory();
-    loadCache();
+    initializePage();
   }
 
   @override
@@ -69,6 +69,8 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
     final provider = await storageService.loadProvider();
     final savedAutoTranslate = await storageService.loadAutoTranslate();
 
+    if (!mounted) return;
+
     setState(() {
       selectedProvider = provider;
       autoTranslate = savedAutoTranslate;
@@ -78,6 +80,8 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   Future<void> loadHistory() async {
     final savedHistory = await storageService.loadHistory();
 
+    if (!mounted) return;
+
     setState(() {
       history = savedHistory;
     });
@@ -86,9 +90,21 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   Future<void> loadCache() async {
     final savedCache = await storageService.loadCache();
 
+    if (!mounted) return;
+
     setState(() {
       cache = savedCache;
     });
+  }
+
+  Future<void> initializePage() async {
+    await loadSettings();
+    await loadHistory();
+    await loadCache();
+
+    if (!mounted || widget.initialPdfPath == null) return;
+
+    await openPdfPath(widget.initialPdfPath!);
   }
 
   Future<void> pickPdf() async {
@@ -132,6 +148,11 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   }
 
   Future<void> openPdfPath(String path) async {
+    await loadPdfFile(File(path));
+  }
+
+  Future<void> loadPdfFile(File file) async {
+    final path = file.path;
     final key = await storageService.makePdfStorageKey(path);
     final savedPage = await storageService.loadSavedPage(key);
 
@@ -139,7 +160,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
 
     setState(() {
       pdfStorageKey = key;
-      pdfFile = File(path);
+      pdfFile = file;
       selectedText = '';
       resultText = '';
       resultTitle = 'Risultato';
@@ -156,7 +177,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
 
       if (!mounted) return;
 
-      Navigator.push(
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => EpubReaderPage(book: book)),
       );

@@ -17,10 +17,19 @@ class ResultPage extends StatelessWidget {
     );
   }
 
+  void returnToDocument(BuildContext context) {
+    Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Torna al documento',
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => returnToDocument(context),
+        ),
         title: Text(title),
         actions: [
           IconButton(
