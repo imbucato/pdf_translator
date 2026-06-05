@@ -10,6 +10,9 @@ class HistoryPage extends StatefulWidget {
   onExportHistory;
   final Future<void> Function() onClearPdfHistory;
   final Future<void> Function(HistoryItem item) onDeleteItem;
+  final String clearHistoryLabel;
+  final String emptyHistoryLabel;
+  final String locationLabel;
 
   const HistoryPage({
     super.key,
@@ -19,6 +22,9 @@ class HistoryPage extends StatefulWidget {
     required this.onExportHistory,
     required this.onClearPdfHistory,
     required this.onDeleteItem,
+    this.clearHistoryLabel = 'Svuota PDF',
+    this.emptyHistoryLabel = 'Nessuna cronologia per questo PDF',
+    this.locationLabel = 'pagina',
   });
 
   @override
@@ -100,7 +106,7 @@ class _HistoryPageState extends State<HistoryPage> {
                   OutlinedButton.icon(
                     onPressed: widget.onClearPdfHistory,
                     icon: const Icon(Icons.delete),
-                    label: const Text('Svuota PDF'),
+                    label: Text(widget.clearHistoryLabel),
                   ),
                 ],
               ),
@@ -108,9 +114,7 @@ class _HistoryPageState extends State<HistoryPage> {
             const Divider(),
             Expanded(
               child: currentHistory.isEmpty
-                  ? const Center(
-                      child: Text('Nessuna cronologia per questo PDF'),
-                    )
+                  ? Center(child: Text(widget.emptyHistoryLabel))
                   : ListView.builder(
                       itemCount: currentHistory.length,
                       itemBuilder: (context, index) {
@@ -123,7 +127,7 @@ class _HistoryPageState extends State<HistoryPage> {
                           ),
                           child: ListTile(
                             title: Text(
-                              '${item.action} · ${item.provider} - pagina ${item.page}',
+                              '${item.action} · ${item.provider} - ${widget.locationLabel} ${item.page}',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),
@@ -183,6 +187,9 @@ class _HistoryPageState extends State<HistoryPage> {
 
                               if (confirm == true) {
                                 await widget.onDeleteItem(item);
+                                if (mounted) {
+                                  setState(() {});
+                                }
                               }
                             },
                           ),

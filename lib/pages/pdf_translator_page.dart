@@ -52,6 +52,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
 
   Timer? autoTranslateTimer;
   String lastAutoTranslateKey = '';
+  int aiRequestVersion = 0;
 
   @override
   void initState() {
@@ -230,6 +231,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
     }
 
     final prompt = aiService.buildPrompt(action, text);
+    final requestVersion = aiRequestVersion;
 
     setState(() {
       isLoading = true;
@@ -243,8 +245,12 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
         prompt: prompt,
       );
 
+      if (!mounted || requestVersion != aiRequestVersion) return;
+
       cache[cacheKey] = parsed;
       await storageService.saveCache(cache);
+
+      if (!mounted || requestVersion != aiRequestVersion) return;
 
       final item = HistoryItem(
         pdfKey: pdfStorageKey ?? '',
@@ -263,14 +269,18 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
 
       await storageService.saveHistory(history);
     } catch (e) {
+      if (!mounted || requestVersion != aiRequestVersion) return;
+
       setState(() {
         resultTitle = 'Errore';
         resultText = e.toString();
       });
     } finally {
-      setState(() {
-        isLoading = false;
-      });
+      if (mounted && requestVersion == aiRequestVersion) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
@@ -489,11 +499,18 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   }
 
   Future<void> clearCache() async {
+    autoTranslateTimer?.cancel();
+    aiRequestVersion++;
+
     setState(() {
       cache.clear();
+      resultText = '';
+      resultTitle = 'Risultato';
+      lastAutoTranslateKey = '';
+      isLoading = false;
     });
 
-    await storageService.clearCache();
+    await storageService.saveCache(cache);
 
     if (!mounted) return;
 

@@ -4,11 +4,13 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart' as fp;
 import 'package:flutter/material.dart';
 
+import '../models/history_item.dart';
 import '../services/ai_service.dart';
 import '../services/epub_service.dart';
 import '../services/storage_service.dart';
 import '../services/text_cleaner_service.dart';
 import '../widgets/translation_panel.dart';
+import 'history_page.dart';
 import 'pdf_translator_page.dart';
 import 'result_page.dart';
 
@@ -43,6 +45,8 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
   AiProvider selectedProvider = AiProvider.openai;
   Map<String, String> cache = {};
+  List<HistoryItem> history = [];
+  int _aiRequestVersion = 0;
 
   @override
   void initState() {
@@ -58,6 +62,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     _restoreReadingPosition();
     _loadSettings();
     _loadCache();
+    _loadHistory();
   }
 
   Future<void> _loadSettings() async {
@@ -79,6 +84,16 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
     setState(() {
       cache = savedCache;
+    });
+  }
+
+  Future<void> _loadHistory() async {
+    final savedHistory = await _storageService.loadHistory();
+
+    if (!mounted) return;
+
+    setState(() {
+      history = savedHistory;
     });
   }
 
@@ -156,8 +171,15 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   }
 
   Future<void> clearCache() async {
+    _autoTranslateTimer?.cancel();
+    _aiRequestVersion++;
+
     setState(() {
       cache.clear();
+      resultText = '';
+      resultTitle = 'Risultato';
+      lastAutoTranslateKey = '';
+      isLoading = false;
     });
 
     await _storageService.saveCache(cache);
@@ -167,6 +189,55 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Cache svuotata')));
+  }
+
+  Future<void> showEpubHistory() async {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) {
+        return HistoryPage(
+          history: history,
+          currentPdfKey: _epubStorageKey,
+          clearHistoryLabel: 'Svuota EPUB',
+          emptyHistoryLabel: 'Nessuna cronologia per questo EPUB',
+          locationLabel: 'capitolo',
+          onTapItem: _openHistoryItem,
+          onDeleteItem: (item) async {
+            setState(() {
+              history.remove(item);
+            });
+
+            await _storageService.saveHistory(history);
+
+            if (!mounted) return;
+
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Voce eliminata')));
+          },
+          onClearPdfHistory: () async {
+            setState(() {
+              history.removeWhere((item) => item.pdfKey == _epubStorageKey);
+            });
+
+            await _storageService.saveHistory(history);
+
+            if (mounted) Navigator.pop(context);
+          },
+          onExportHistory: (type, filteredHistory) async {
+            if (!mounted) return;
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Export EPUB non disponibile per ora.'),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> pickDocument() async {
@@ -251,6 +322,29 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     return text.substring(0, 1200);
   }
 
+  Future<void> _saveHistoryItem({
+    required String action,
+    required String provider,
+    required String original,
+    required String result,
+  }) async {
+    final item = HistoryItem(
+      pdfKey: _epubStorageKey,
+      action: action,
+      provider: provider,
+      original: original,
+      result: result,
+      page: selectedChapterIndex + 1,
+      date: DateTime.now(),
+    );
+
+    setState(() {
+      history.insert(0, item);
+    });
+
+    await _storageService.saveHistory(history);
+  }
+
   Future<void> _askAi(String action) async {
     final text = _limitedSelectedText();
     if (text.isEmpty) return;
@@ -265,15 +359,25 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     );
 
     if (cache.containsKey(cacheKey)) {
+      final cachedResult = cache[cacheKey]!;
+
       setState(() {
         resultTitle = '$title - $provider - cache';
-        resultText = cache[cacheKey]!;
+        resultText = cachedResult;
       });
+
+      await _saveHistoryItem(
+        action: title,
+        provider: provider,
+        original: text,
+        result: cachedResult,
+      );
 
       return;
     }
 
     final prompt = _aiService.buildPrompt(action, text);
+    final requestVersion = _aiRequestVersion;
 
     setState(() {
       isLoading = true;
@@ -287,16 +391,25 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
         prompt: prompt,
       );
 
+      if (!mounted || requestVersion != _aiRequestVersion) return;
+
       cache[cacheKey] = parsed;
       await _storageService.saveCache(cache);
 
-      if (!mounted) return;
+      if (!mounted || requestVersion != _aiRequestVersion) return;
 
       setState(() {
         resultText = parsed;
       });
+
+      await _saveHistoryItem(
+        action: title,
+        provider: provider,
+        original: text,
+        result: parsed,
+      );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || requestVersion != _aiRequestVersion) return;
 
       setState(() {
         resultTitle = 'Errore';
@@ -307,7 +420,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
         context,
       ).showSnackBar(SnackBar(content: Text('Errore AI: $e')));
     } finally {
-      if (mounted) {
+      if (mounted && requestVersion == _aiRequestVersion) {
         setState(() {
           isLoading = false;
         });
@@ -404,6 +517,39 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     setState(() {
       selectedText = '';
       _selectionClearVersion++;
+    });
+  }
+
+  void _openHistoryItem(HistoryItem item) {
+    Navigator.pop(context);
+
+    final chapterIndex = item.page - 1;
+    final hasValidChapter =
+        chapterIndex >= 0 && chapterIndex < widget.book.chapters.length;
+
+    setState(() {
+      if (hasValidChapter) {
+        selectedChapterIndex = chapterIndex;
+      }
+
+      resultTitle = '${item.action} - ${item.provider} - capitolo ${item.page}';
+      resultText = item.result;
+    });
+
+    if (!hasValidChapter) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      final chapterContext = _chapterKeys[chapterIndex].currentContext;
+      if (chapterContext == null) return;
+
+      Scrollable.ensureVisible(
+        chapterContext,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+        alignment: 0,
+      );
     });
   }
 
@@ -514,6 +660,11 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
             tooltip: 'Credito',
             icon: const Icon(Icons.account_balance_wallet),
             onPressed: showCreditInfo,
+          ),
+          IconButton(
+            tooltip: 'Cronologia EPUB',
+            icon: const Icon(Icons.history),
+            onPressed: showEpubHistory,
           ),
           IconButton(
             tooltip: 'Svuota cache',
