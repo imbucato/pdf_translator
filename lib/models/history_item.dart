@@ -6,6 +6,7 @@ class HistoryItem {
   final String result;
   final int page;
   final DateTime date;
+  final double? scrollOffset;
 
   HistoryItem({
     required this.pdfKey,
@@ -15,6 +16,7 @@ class HistoryItem {
     required this.result,
     required this.page,
     required this.date,
+    this.scrollOffset,
   });
 
   Map<String, dynamic> toJson() => {
@@ -25,9 +27,12 @@ class HistoryItem {
     'result': result,
     'page': page,
     'date': date.toIso8601String(),
+    'scrollOffset': scrollOffset,
   };
 
   factory HistoryItem.fromJson(Map<String, dynamic> json) {
+    final rawScrollOffset = json['scrollOffset'];
+
     return HistoryItem(
       pdfKey: json['pdfKey'] ?? '',
       action: json['action'] ?? '',
@@ -36,6 +41,9 @@ class HistoryItem {
       result: json['result'] ?? '',
       page: json['page'] ?? 1,
       date: DateTime.tryParse(json['date'] ?? '') ?? DateTime.now(),
+      scrollOffset: rawScrollOffset is num
+          ? rawScrollOffset.toDouble()
+          : double.tryParse(rawScrollOffset?.toString() ?? ''),
     );
   }
 }

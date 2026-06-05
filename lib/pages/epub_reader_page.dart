@@ -39,6 +39,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   String resultTitle = 'Risultato';
   String resultText = '';
   String lastAutoTranslateKey = '';
+  double? selectedTextScrollOffset;
 
   bool isLoading = false;
   bool autoTranslate = false;
@@ -328,17 +329,24 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     required String original,
     required String result,
   }) async {
+    final chapterIndex = _currentVisibleChapterIndex();
+    final currentOffset =
+        selectedTextScrollOffset ??
+        (_scrollController.hasClients ? _scrollController.offset : null);
+
     final item = HistoryItem(
       pdfKey: _epubStorageKey,
       action: action,
       provider: provider,
       original: original,
       result: result,
-      page: selectedChapterIndex + 1,
+      page: chapterIndex + 1,
       date: DateTime.now(),
+      scrollOffset: currentOffset,
     );
 
     setState(() {
+      selectedChapterIndex = chapterIndex;
       history.insert(0, item);
     });
 
@@ -516,6 +524,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
     setState(() {
       selectedText = '';
+      selectedTextScrollOffset = null;
       _selectionClearVersion++;
     });
   }
@@ -536,20 +545,41 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       resultText = item.result;
     });
 
+    final targetOffset = item.scrollOffset;
+
+    if (targetOffset != null) {
+      void jumpToSavedOffset() {
+        if (!mounted || !_scrollController.hasClients) return;
+
+        final position = _scrollController.position;
+        final safeOffset = targetOffset.clamp(
+          position.minScrollExtent,
+          position.maxScrollExtent,
+        );
+
+        _scrollController.jumpTo(safeOffset);
+      }
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        jumpToSavedOffset();
+      });
+
+      Future.delayed(const Duration(milliseconds: 120), () {
+        jumpToSavedOffset();
+      });
+
+      Future.delayed(const Duration(milliseconds: 300), () {
+        jumpToSavedOffset();
+      });
+
+      return;
+    }
+
     if (!hasValidChapter) return;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    Future.delayed(const Duration(milliseconds: 200), () {
       if (!mounted) return;
-
-      final chapterContext = _chapterKeys[chapterIndex].currentContext;
-      if (chapterContext == null) return;
-
-      Scrollable.ensureVisible(
-        chapterContext,
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeOutCubic,
-        alignment: 0,
-      );
+      _scrollToChapter(chapterIndex);
     });
   }
 
@@ -558,6 +588,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
     setState(() {
       selectedText = '';
+      selectedTextScrollOffset = null;
       resultText = '';
       resultTitle = 'Risultato';
       lastAutoTranslateKey = '';
@@ -625,6 +656,33 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       curve: Curves.easeOutCubic,
       alignment: 0,
     );
+  }
+
+  int _currentVisibleChapterIndex() {
+    if (!_scrollController.hasClients || _chapterKeys.isEmpty) {
+      return selectedChapterIndex;
+    }
+
+    final markerY = MediaQuery.of(context).size.height * 0.35;
+    var currentIndex = selectedChapterIndex;
+
+    for (var i = 0; i < _chapterKeys.length; i++) {
+      final chapterContext = _chapterKeys[i].currentContext;
+      if (chapterContext == null) continue;
+
+      final renderObject = chapterContext.findRenderObject();
+      if (renderObject is! RenderBox) continue;
+
+      final chapterTop = renderObject.localToGlobal(Offset.zero).dy;
+
+      if (chapterTop <= markerY) {
+        currentIndex = i;
+      } else {
+        break;
+      }
+    }
+
+    return currentIndex.clamp(0, _chapterKeys.length - 1);
   }
 
   @override
@@ -705,8 +763,15 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
                 onSelectionChanged: (selection) {
                   final newText = selection?.plainText ?? '';
 
+                  final currentOffset = _scrollController.hasClients
+                      ? _scrollController.offset
+                      : null;
+
                   setState(() {
                     selectedText = newText;
+                    selectedTextScrollOffset = newText.trim().isNotEmpty
+                        ? currentOffset
+                        : null;
                   });
 
                   _scheduleAutoTranslate(newText);
