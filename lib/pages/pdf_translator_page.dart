@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../models/history_item.dart';
+import '../models/recent_document.dart';
 import '../services/ai_service.dart';
 import '../services/export_service.dart';
 import '../services/storage_service.dart';
@@ -48,6 +49,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   AiProvider selectedProvider = AiProvider.openai;
 
   List<HistoryItem> history = [];
+  List<RecentDocument> recentDocuments = [];
   Map<String, String> cache = {};
 
   Timer? autoTranslateTimer;
@@ -98,10 +100,21 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
     });
   }
 
+  Future<void> loadRecentDocuments() async {
+    final savedRecentDocuments = await storageService.loadRecentDocuments();
+
+    if (!mounted) return;
+
+    setState(() {
+      recentDocuments = savedRecentDocuments;
+    });
+  }
+
   Future<void> initializePage() async {
     await loadSettings();
     await loadHistory();
     await loadCache();
+    await loadRecentDocuments();
 
     if (!mounted || widget.initialPdfPath == null) return;
 
@@ -168,6 +181,8 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
       currentPage = savedPage;
       lastAutoTranslateKey = '';
     });
+
+    await addRecentDocument(path: path, type: 'pdf');
   }
 
   Future<void> openEpubPath(String path) async {
@@ -175,6 +190,10 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
 
     try {
       final book = await EpubService().readEpub(file);
+
+      if (!mounted) return;
+
+      await addRecentDocument(path: path, type: 'epub');
 
       if (!mounted) return;
 
@@ -188,6 +207,46 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Errore apertura EPUB: $e')));
+    }
+  }
+
+  String documentNameFromPath(String path) {
+    return path.split(Platform.pathSeparator).last;
+  }
+
+  Future<void> addRecentDocument({
+    required String path,
+    required String type,
+  }) async {
+    await storageService.addRecentDocument(
+      RecentDocument(
+        path: path,
+        name: documentNameFromPath(path),
+        type: type,
+        openedAt: DateTime.now(),
+      ),
+    );
+
+    await loadRecentDocuments();
+  }
+
+  Future<void> openRecentDocument(RecentDocument document) async {
+    if (!File(document.path).existsSync()) {
+      await storageService.removeRecentDocument(document.path);
+      await loadRecentDocuments();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('File non trovato')));
+      return;
+    }
+
+    if (document.type == 'pdf') {
+      await openPdfPath(document.path);
+    } else if (document.type == 'epub') {
+      await openEpubPath(document.path);
     }
   }
 
@@ -552,6 +611,55 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
     );
   }
 
+  Widget buildEmptyState() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: ElevatedButton.icon(
+                  onPressed: pickDocument,
+                  icon: const Icon(Icons.folder_open),
+                  label: const Text('Apri PDF o EPUB'),
+                ),
+              ),
+              if (recentDocuments.isNotEmpty) ...[
+                const SizedBox(height: 32),
+                Text(
+                  'Ultimi documenti',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                ...recentDocuments.map((document) {
+                  final isPdf = document.type == 'pdf';
+
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      isPdf ? Icons.picture_as_pdf : Icons.menu_book,
+                    ),
+                    title: Text(document.name),
+                    subtitle: Text(
+                      '${document.type.toUpperCase()} - ${document.path}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onTap: () => openRecentDocument(document),
+                  );
+                }),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasPdf = pdfFile != null;
@@ -596,13 +704,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
         children: [
           Expanded(
             child: !hasPdf
-                ? Center(
-                    child: ElevatedButton.icon(
-                      onPressed: pickDocument,
-                      icon: const Icon(Icons.folder_open),
-                      label: const Text('Apri PDF o EPUB'),
-                    ),
-                  )
+                ? buildEmptyState()
                 : SfPdfViewer.file(
                     pdfFile!,
                     controller: pdfController,

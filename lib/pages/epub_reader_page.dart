@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart' as fp;
 import 'package:flutter/material.dart';
 
 import '../models/history_item.dart';
+import '../models/recent_document.dart';
 import '../services/ai_service.dart';
 import '../services/epub_service.dart';
 import '../services/storage_service.dart';
@@ -267,6 +268,9 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       if (!mounted) return;
 
       final file = File(path);
+      await _addRecentDocument(path: path, type: 'pdf');
+
+      if (!mounted) return;
 
       Navigator.pushReplacement(
         context,
@@ -285,6 +289,10 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
       if (!mounted) return;
 
+      await _addRecentDocument(path: path, type: 'epub');
+
+      if (!mounted) return;
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => EpubReaderPage(book: book)),
@@ -296,6 +304,24 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
         context,
       ).showSnackBar(SnackBar(content: Text('Errore apertura EPUB: $e')));
     }
+  }
+
+  String _documentNameFromPath(String path) {
+    return path.split(Platform.pathSeparator).last;
+  }
+
+  Future<void> _addRecentDocument({
+    required String path,
+    required String type,
+  }) async {
+    await _storageService.addRecentDocument(
+      RecentDocument(
+        path: path,
+        name: _documentNameFromPath(path),
+        type: type,
+        openedAt: DateTime.now(),
+      ),
+    );
   }
 
   void showChapterSelector() {

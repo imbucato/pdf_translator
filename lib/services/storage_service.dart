@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/history_item.dart';
+import '../models/recent_document.dart';
 import 'ai_service.dart';
 
 class StorageService {
@@ -43,6 +44,49 @@ class StorageService {
   Future<void> saveEpubFontSize(double value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('epub_font_size', value);
+  }
+
+  Future<List<RecentDocument>> loadRecentDocuments() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList('recent_documents') ?? [];
+
+    final documents = raw
+        .map((e) => RecentDocument.fromJson(jsonDecode(e)))
+        .where((document) => document.path.isNotEmpty)
+        .toList();
+
+    documents.sort((a, b) => b.openedAt.compareTo(a.openedAt));
+
+    return documents.take(10).toList();
+  }
+
+  Future<void> saveRecentDocuments(List<RecentDocument> documents) async {
+    final prefs = await SharedPreferences.getInstance();
+    final sortedDocuments = [...documents]
+      ..sort((a, b) => b.openedAt.compareTo(a.openedAt));
+    final raw = sortedDocuments
+        .take(10)
+        .map((document) => jsonEncode(document.toJson()))
+        .toList();
+
+    await prefs.setStringList('recent_documents', raw);
+  }
+
+  Future<void> addRecentDocument(RecentDocument document) async {
+    final documents = await loadRecentDocuments();
+    final updatedDocuments = [
+      document,
+      ...documents.where((item) => item.path != document.path),
+    ];
+
+    await saveRecentDocuments(updatedDocuments);
+  }
+
+  Future<void> removeRecentDocument(String path) async {
+    final documents = await loadRecentDocuments();
+    await saveRecentDocuments(
+      documents.where((document) => document.path != path).toList(),
+    );
   }
 
   Future<String> makePdfStorageKey(String path) async {
