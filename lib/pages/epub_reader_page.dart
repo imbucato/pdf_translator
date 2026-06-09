@@ -752,66 +752,66 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     );
   }
 
+  Widget _buildEpubContent() {
+    return SingleChildScrollView(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(18),
+      child: SelectionArea(
+        key: ValueKey(_selectionClearVersion),
+        onSelectionChanged: (selection) {
+          final newText = selection?.plainText ?? '';
+
+          final currentOffset = _scrollController.hasClients
+              ? _scrollController.offset
+              : null;
+
+          setState(() {
+            selectedText = newText;
+            selectedTextScrollOffset = newText.trim().isNotEmpty
+                ? currentOffset
+                : null;
+          });
+
+          _scheduleAutoTranslate(newText);
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: List.generate(widget.book.chapters.length, (index) {
+            final chapter = widget.book.chapters[index];
+
+            return Padding(
+              key: _chapterKeys[index],
+              padding: EdgeInsets.only(
+                bottom: index == widget.book.chapters.length - 1 ? 24 : 36,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    chapter.title,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    chapter.text,
+                    style: const TextStyle(fontSize: 18, height: 1.5),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: _buildEpubAppBar(),
       body: Column(
         children: [
-          Expanded(
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(18),
-              child: SelectionArea(
-                key: ValueKey(_selectionClearVersion),
-                onSelectionChanged: (selection) {
-                  final newText = selection?.plainText ?? '';
-
-                  final currentOffset = _scrollController.hasClients
-                      ? _scrollController.offset
-                      : null;
-
-                  setState(() {
-                    selectedText = newText;
-                    selectedTextScrollOffset = newText.trim().isNotEmpty
-                        ? currentOffset
-                        : null;
-                  });
-
-                  _scheduleAutoTranslate(newText);
-                },
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: List.generate(widget.book.chapters.length, (index) {
-                    final chapter = widget.book.chapters[index];
-
-                    return Padding(
-                      key: _chapterKeys[index],
-                      padding: EdgeInsets.only(
-                        bottom: index == widget.book.chapters.length - 1
-                            ? 24
-                            : 36,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            chapter.title,
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                          const SizedBox(height: 18),
-                          Text(
-                            chapter.text,
-                            style: const TextStyle(fontSize: 18, height: 1.5),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-                ),
-              ),
-            ),
-          ),
+          Expanded(child: _buildEpubContent()),
           TranslationPanel(
             selectedText: selectedText,
             resultText: resultText,
