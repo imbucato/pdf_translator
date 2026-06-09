@@ -805,6 +805,43 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     );
   }
 
+  Widget _buildTranslationPanel() {
+    return TranslationPanel(
+      selectedText: selectedText,
+      resultText: resultText,
+      resultTitle: resultTitle,
+      isLoading: isLoading,
+      currentPage: selectedChapterIndex + 1,
+      autoTranslate: autoTranslate,
+      selectedProvider: selectedProvider,
+      locationLabel: 'capitolo ${selectedChapterIndex + 1}',
+      emptySelectionMessage: 'Seleziona una frase nell\'EPUB',
+      onProviderChanged: (value) {
+        setState(() {
+          selectedProvider = value;
+          lastAutoTranslateKey = '';
+        });
+
+        _storageService.saveProvider(value);
+      },
+      onAutoTranslateChanged: (value) {
+        setState(() {
+          autoTranslate = value;
+          lastAutoTranslateKey = '';
+        });
+
+        _storageService.saveAutoTranslate(value);
+
+        if (value && selectedText.trim().isNotEmpty) {
+          _scheduleAutoTranslate(selectedText);
+        }
+      },
+      onShowActionPopup: _showActionPopup,
+      onAskAi: _askAi,
+      onOpenResult: openResultPage,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -812,40 +849,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       body: Column(
         children: [
           Expanded(child: _buildEpubContent()),
-          TranslationPanel(
-            selectedText: selectedText,
-            resultText: resultText,
-            resultTitle: resultTitle,
-            isLoading: isLoading,
-            currentPage: selectedChapterIndex + 1,
-            autoTranslate: autoTranslate,
-            selectedProvider: selectedProvider,
-            locationLabel: 'capitolo ${selectedChapterIndex + 1}',
-            emptySelectionMessage: 'Seleziona una frase nell\'EPUB',
-            onProviderChanged: (value) {
-              setState(() {
-                selectedProvider = value;
-                lastAutoTranslateKey = '';
-              });
-
-              _storageService.saveProvider(value);
-            },
-            onAutoTranslateChanged: (value) {
-              setState(() {
-                autoTranslate = value;
-                lastAutoTranslateKey = '';
-              });
-
-              _storageService.saveAutoTranslate(value);
-
-              if (value && selectedText.trim().isNotEmpty) {
-                _scheduleAutoTranslate(selectedText);
-              }
-            },
-            onShowActionPopup: _showActionPopup,
-            onAskAi: _askAi,
-            onOpenResult: openResultPage,
-          ),
+          _buildTranslationPanel(),
         ],
       ),
     );
