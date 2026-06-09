@@ -703,55 +703,59 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     super.dispose();
   }
 
+  PreferredSizeWidget _buildEpubAppBar() {
+    return AppBar(
+      title: Text(widget.book.title, overflow: TextOverflow.ellipsis),
+      actions: [
+        IconButton(
+          tooltip: 'Home',
+          icon: const Icon(Icons.home_outlined),
+          onPressed: resetToHome,
+        ),
+        IconButton(
+          tooltip: 'Credito',
+          icon: const Icon(Icons.account_balance_wallet),
+          onPressed: showCreditInfo,
+        ),
+        IconButton(
+          tooltip: 'Cronologia EPUB',
+          icon: const Icon(Icons.history),
+          onPressed: showEpubHistory,
+        ),
+        IconButton(
+          tooltip: 'Svuota cache',
+          icon: const Icon(Icons.cached),
+          onPressed: clearCache,
+        ),
+        IconButton(
+          tooltip: 'Apri PDF o EPUB',
+          icon: const Icon(Icons.folder_open),
+          onPressed: pickDocument,
+        ),
+        IconButton(
+          tooltip: 'Pulisci',
+          icon: const Icon(Icons.clear),
+          onPressed: clearAll,
+        ),
+        if (selectedText.trim().isNotEmpty)
+          IconButton(
+            tooltip: 'Cancella selezione',
+            icon: const Icon(Icons.backspace_outlined),
+            onPressed: _clearSelection,
+          ),
+        IconButton(
+          tooltip: 'Capitoli',
+          icon: const Icon(Icons.menu_book),
+          onPressed: showChapterSelector,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.book.title, overflow: TextOverflow.ellipsis),
-        actions: [
-          IconButton(
-            tooltip: 'Home',
-            icon: const Icon(Icons.home_outlined),
-            onPressed: resetToHome,
-          ),
-          IconButton(
-            tooltip: 'Credito',
-            icon: const Icon(Icons.account_balance_wallet),
-            onPressed: showCreditInfo,
-          ),
-          IconButton(
-            tooltip: 'Cronologia EPUB',
-            icon: const Icon(Icons.history),
-            onPressed: showEpubHistory,
-          ),
-          IconButton(
-            tooltip: 'Svuota cache',
-            icon: const Icon(Icons.cached),
-            onPressed: clearCache,
-          ),
-          IconButton(
-            tooltip: 'Apri PDF o EPUB',
-            icon: const Icon(Icons.folder_open),
-            onPressed: pickDocument,
-          ),
-          IconButton(
-            tooltip: 'Pulisci',
-            icon: const Icon(Icons.clear),
-            onPressed: clearAll,
-          ),
-          if (selectedText.trim().isNotEmpty)
-            IconButton(
-              tooltip: 'Cancella selezione',
-              icon: const Icon(Icons.backspace_outlined),
-              onPressed: _clearSelection,
-            ),
-          IconButton(
-            tooltip: 'Capitoli',
-            icon: const Icon(Icons.menu_book),
-            onPressed: showChapterSelector,
-          ),
-        ],
-      ),
+      appBar: _buildEpubAppBar(),
       body: Column(
         children: [
           Expanded(
