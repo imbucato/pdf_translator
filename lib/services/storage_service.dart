@@ -46,6 +46,36 @@ class StorageService {
     await prefs.setDouble('epub_font_size', value);
   }
 
+  Future<double> loadEpubHorizontalPadding() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble('epub_horizontal_padding') ?? 18.0;
+  }
+
+  Future<void> saveEpubHorizontalPadding(double value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('epub_horizontal_padding', value);
+  }
+
+  Future<double> loadEpubLineHeight() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble('epub_line_height') ?? 1.5;
+  }
+
+  Future<void> saveEpubLineHeight(double value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('epub_line_height', value);
+  }
+
+  Future<String> loadEpubReadingTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('epub_reading_theme') ?? 'light';
+  }
+
+  Future<void> saveEpubReadingTheme(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('epub_reading_theme', value);
+  }
+
   Future<List<RecentDocument>> loadRecentDocuments() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList('recent_documents') ?? [];

@@ -37,6 +37,9 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   int _selectionClearVersion = 0;
   int selectedChapterIndex = 0;
   double epubFontSize = 18.0;
+  double epubHorizontalPadding = 18.0;
+  double epubLineHeight = 1.5;
+  String epubReadingTheme = 'light';
   String selectedText = '';
   String resultTitle = 'Risultato';
   String resultText = '';
@@ -54,6 +57,18 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   static const double _minEpubFontSize = 14.0;
   static const double _maxEpubFontSize = 28.0;
   static const double _epubFontSizeStep = 1.0;
+  static const List<double> _epubHorizontalPaddingValues = [
+    12.0,
+    18.0,
+    24.0,
+    32.0,
+  ];
+  static const List<double> _epubLineHeightValues = [1.3, 1.5, 1.7, 1.9];
+  static const List<String> _epubReadingThemeValues = [
+    'light',
+    'sepia',
+    'dark',
+  ];
 
   @override
   void initState() {
@@ -76,6 +91,10 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     final provider = await _storageService.loadProvider();
     final savedAutoTranslate = await _storageService.loadAutoTranslate();
     final savedEpubFontSize = await _storageService.loadEpubFontSize();
+    final savedEpubHorizontalPadding = await _storageService
+        .loadEpubHorizontalPadding();
+    final savedEpubLineHeight = await _storageService.loadEpubLineHeight();
+    final savedEpubReadingTheme = await _storageService.loadEpubReadingTheme();
 
     if (!mounted) return;
 
@@ -85,6 +104,16 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       epubFontSize = savedEpubFontSize
           .clamp(_minEpubFontSize, _maxEpubFontSize)
           .toDouble();
+      epubHorizontalPadding =
+          _epubHorizontalPaddingValues.contains(savedEpubHorizontalPadding)
+          ? savedEpubHorizontalPadding
+          : 18.0;
+      epubLineHeight = _epubLineHeightValues.contains(savedEpubLineHeight)
+          ? savedEpubLineHeight
+          : 1.5;
+      epubReadingTheme = _epubReadingThemeValues.contains(savedEpubReadingTheme)
+          ? savedEpubReadingTheme
+          : 'light';
     });
   }
 
@@ -745,15 +774,49 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
     if (nextFontSize == epubFontSize) return;
 
-    final savedOffset = _scrollController.hasClients
-        ? _scrollController.offset
-        : null;
-
-    setState(() {
+    _updateReadingAppearance(() {
       epubFontSize = nextFontSize;
     });
 
     unawaited(_storageService.saveEpubFontSize(nextFontSize));
+  }
+
+  void _changeEpubHorizontalPadding(double value) {
+    if (value == epubHorizontalPadding) return;
+
+    _updateReadingAppearance(() {
+      epubHorizontalPadding = value;
+    });
+
+    unawaited(_storageService.saveEpubHorizontalPadding(value));
+  }
+
+  void _changeEpubLineHeight(double value) {
+    if (value == epubLineHeight) return;
+
+    _updateReadingAppearance(() {
+      epubLineHeight = value;
+    });
+
+    unawaited(_storageService.saveEpubLineHeight(value));
+  }
+
+  void _changeEpubReadingTheme(String value) {
+    if (value == epubReadingTheme) return;
+
+    _updateReadingAppearance(() {
+      epubReadingTheme = value;
+    });
+
+    unawaited(_storageService.saveEpubReadingTheme(value));
+  }
+
+  void _updateReadingAppearance(VoidCallback update) {
+    final savedOffset = _scrollController.hasClients
+        ? _scrollController.offset
+        : null;
+
+    setState(update);
 
     if (savedOffset == null) return;
 
@@ -768,6 +831,176 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
       _scrollController.jumpTo(restoredOffset);
     });
+  }
+
+  Color _readingBackgroundColor(ColorScheme colorScheme) {
+    switch (epubReadingTheme) {
+      case 'sepia':
+        return const Color(0xFFF4ECD8);
+      case 'dark':
+        return const Color(0xFF121212);
+      case 'light':
+      default:
+        return colorScheme.surface;
+    }
+  }
+
+  Color _readingTextColor(ColorScheme colorScheme) {
+    switch (epubReadingTheme) {
+      case 'sepia':
+        return const Color(0xFF3B2F24);
+      case 'dark':
+        return const Color(0xFFEAEAEA);
+      case 'light':
+      default:
+        return colorScheme.onSurface;
+    }
+  }
+
+  void _showReadingSettingsSheet() {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            Widget optionChip({
+              required String label,
+              required bool selected,
+              required VoidCallback onSelected,
+            }) {
+              return ChoiceChip(
+                label: Text(label),
+                selected: selected,
+                onSelected: (_) {
+                  onSelected();
+                  setModalState(() {});
+                },
+              );
+            }
+
+            return SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Impostazioni lettura',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        IconButton(
+                          tooltip: 'Riduci carattere',
+                          icon: const Icon(Icons.text_decrease),
+                          onPressed: () {
+                            _changeEpubFontSize(-_epubFontSizeStep);
+                            setModalState(() {});
+                          },
+                        ),
+                        Expanded(
+                          child: Center(
+                            child: Text(
+                              epubFontSize.toStringAsFixed(0),
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Aumenta carattere',
+                          icon: const Icon(Icons.text_increase),
+                          onPressed: () {
+                            _changeEpubFontSize(_epubFontSizeStep);
+                            setModalState(() {});
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Margini',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        optionChip(
+                          label: 'Stretti',
+                          selected: epubHorizontalPadding == 12.0,
+                          onSelected: () => _changeEpubHorizontalPadding(12.0),
+                        ),
+                        optionChip(
+                          label: 'Normali',
+                          selected: epubHorizontalPadding == 18.0,
+                          onSelected: () => _changeEpubHorizontalPadding(18.0),
+                        ),
+                        optionChip(
+                          label: 'Larghi',
+                          selected: epubHorizontalPadding == 24.0,
+                          onSelected: () => _changeEpubHorizontalPadding(24.0),
+                        ),
+                        optionChip(
+                          label: 'Molto larghi',
+                          selected: epubHorizontalPadding == 32.0,
+                          onSelected: () => _changeEpubHorizontalPadding(32.0),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Interlinea',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final value in _epubLineHeightValues)
+                          optionChip(
+                            label: value.toStringAsFixed(1),
+                            selected: epubLineHeight == value,
+                            onSelected: () => _changeEpubLineHeight(value),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Tema',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        optionChip(
+                          label: 'Chiaro',
+                          selected: epubReadingTheme == 'light',
+                          onSelected: () => _changeEpubReadingTheme('light'),
+                        ),
+                        optionChip(
+                          label: 'Seppia',
+                          selected: epubReadingTheme == 'sepia',
+                          onSelected: () => _changeEpubReadingTheme('sepia'),
+                        ),
+                        optionChip(
+                          label: 'Scuro',
+                          selected: epubReadingTheme == 'dark',
+                          onSelected: () => _changeEpubReadingTheme('dark'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   PreferredSizeWidget _buildEpubAppBar() {
@@ -821,9 +1054,16 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
               case 'selezione':
                 _clearSelection();
                 break;
+              case 'lettura':
+                _showReadingSettingsSheet();
+                break;
             }
           },
           itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'lettura',
+              child: Text('Impostazioni lettura'),
+            ),
             const PopupMenuItem(value: 'credito', child: Text('Credito')),
             const PopupMenuItem(value: 'cache', child: Text('Svuota cache')),
             const PopupMenuItem(value: 'pulisci', child: Text('Pulisci')),
@@ -839,53 +1079,68 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   }
 
   Widget _buildEpubContent() {
-    return SingleChildScrollView(
-      controller: _scrollController,
-      padding: const EdgeInsets.all(18),
-      child: SelectionArea(
-        key: ValueKey(_selectionClearVersion),
-        onSelectionChanged: (selection) {
-          final newText = selection?.plainText ?? '';
+    final colorScheme = Theme.of(context).colorScheme;
+    final textColor = _readingTextColor(colorScheme);
 
-          final currentOffset = _scrollController.hasClients
-              ? _scrollController.offset
-              : null;
+    return ColoredBox(
+      color: _readingBackgroundColor(colorScheme),
+      child: SingleChildScrollView(
+        controller: _scrollController,
+        padding: EdgeInsets.symmetric(
+          horizontal: epubHorizontalPadding,
+          vertical: 18,
+        ),
+        child: SelectionArea(
+          key: ValueKey(_selectionClearVersion),
+          onSelectionChanged: (selection) {
+            final newText = selection?.plainText ?? '';
 
-          setState(() {
-            selectedText = newText;
-            selectedTextScrollOffset = newText.trim().isNotEmpty
-                ? currentOffset
+            final currentOffset = _scrollController.hasClients
+                ? _scrollController.offset
                 : null;
-          });
 
-          _scheduleAutoTranslate(newText);
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: List.generate(widget.book.chapters.length, (index) {
-            final chapter = widget.book.chapters[index];
+            setState(() {
+              selectedText = newText;
+              selectedTextScrollOffset = newText.trim().isNotEmpty
+                  ? currentOffset
+                  : null;
+            });
 
-            return Padding(
-              key: _chapterKeys[index],
-              padding: EdgeInsets.only(
-                bottom: index == widget.book.chapters.length - 1 ? 24 : 36,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    chapter.title,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 18),
-                  Text(
-                    chapter.text,
-                    style: TextStyle(fontSize: epubFontSize, height: 1.5),
-                  ),
-                ],
-              ),
-            );
-          }),
+            _scheduleAutoTranslate(newText);
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: List.generate(widget.book.chapters.length, (index) {
+              final chapter = widget.book.chapters[index];
+
+              return Padding(
+                key: _chapterKeys[index],
+                padding: EdgeInsets.only(
+                  bottom: index == widget.book.chapters.length - 1 ? 24 : 36,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      chapter.title,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.headlineSmall?.copyWith(color: textColor),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      chapter.text,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: epubFontSize,
+                        height: epubLineHeight,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ),
         ),
       ),
     );
