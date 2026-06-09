@@ -35,6 +35,16 @@ class StorageService {
     await prefs.setBool('auto_translate', value);
   }
 
+  Future<double> loadEpubFontSize() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble('epub_font_size') ?? 18.0;
+  }
+
+  Future<void> saveEpubFontSize(double value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('epub_font_size', value);
+  }
+
   Future<String> makePdfStorageKey(String path) async {
     final file = File(path);
     final name = path.split(Platform.pathSeparator).last;

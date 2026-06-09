@@ -35,6 +35,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   Timer? _autoTranslateTimer;
   int _selectionClearVersion = 0;
   int selectedChapterIndex = 0;
+  double epubFontSize = 18.0;
   String selectedText = '';
   String resultTitle = 'Risultato';
   String resultText = '';
@@ -48,6 +49,10 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   Map<String, String> cache = {};
   List<HistoryItem> history = [];
   int _aiRequestVersion = 0;
+
+  static const double _minEpubFontSize = 14.0;
+  static const double _maxEpubFontSize = 28.0;
+  static const double _epubFontSizeStep = 1.0;
 
   @override
   void initState() {
@@ -69,12 +74,16 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   Future<void> _loadSettings() async {
     final provider = await _storageService.loadProvider();
     final savedAutoTranslate = await _storageService.loadAutoTranslate();
+    final savedEpubFontSize = await _storageService.loadEpubFontSize();
 
     if (!mounted) return;
 
     setState(() {
       selectedProvider = provider;
       autoTranslate = savedAutoTranslate;
+      epubFontSize = savedEpubFontSize
+          .clamp(_minEpubFontSize, _maxEpubFontSize)
+          .toDouble();
     });
   }
 
@@ -703,9 +712,41 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     super.dispose();
   }
 
+  void _changeEpubFontSize(double delta) {
+    final nextFontSize = (epubFontSize + delta)
+        .clamp(_minEpubFontSize, _maxEpubFontSize)
+        .toDouble();
+
+    if (nextFontSize == epubFontSize) return;
+
+    final savedOffset = _scrollController.hasClients
+        ? _scrollController.offset
+        : null;
+
+    setState(() {
+      epubFontSize = nextFontSize;
+    });
+
+    unawaited(_storageService.saveEpubFontSize(nextFontSize));
+
+    if (savedOffset == null) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+
+      final position = _scrollController.position;
+      final restoredOffset = savedOffset.clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      );
+
+      _scrollController.jumpTo(restoredOffset);
+    });
+  }
+
   PreferredSizeWidget _buildEpubAppBar() {
     return AppBar(
-      title: Text(widget.book.title, overflow: TextOverflow.ellipsis),
+      //title: Text(widget.book.title, overflow: TextOverflow.ellipsis),
       actions: [
         IconButton(
           tooltip: 'Home',
@@ -713,19 +754,9 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
           onPressed: resetToHome,
         ),
         IconButton(
-          tooltip: 'Credito',
-          icon: const Icon(Icons.account_balance_wallet),
-          onPressed: showCreditInfo,
-        ),
-        IconButton(
           tooltip: 'Cronologia EPUB',
           icon: const Icon(Icons.history),
           onPressed: showEpubHistory,
-        ),
-        IconButton(
-          tooltip: 'Svuota cache',
-          icon: const Icon(Icons.cached),
-          onPressed: clearCache,
         ),
         IconButton(
           tooltip: 'Apri PDF o EPUB',
@@ -733,20 +764,49 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
           onPressed: pickDocument,
         ),
         IconButton(
-          tooltip: 'Pulisci',
-          icon: const Icon(Icons.clear),
-          onPressed: clearAll,
+          tooltip: 'Riduci carattere',
+          icon: const Icon(Icons.text_decrease),
+          onPressed: () => _changeEpubFontSize(-_epubFontSizeStep),
         ),
-        if (selectedText.trim().isNotEmpty)
-          IconButton(
-            tooltip: 'Cancella selezione',
-            icon: const Icon(Icons.backspace_outlined),
-            onPressed: _clearSelection,
-          ),
+        IconButton(
+          tooltip: 'Aumenta carattere',
+          icon: const Icon(Icons.text_increase),
+          onPressed: () => _changeEpubFontSize(_epubFontSizeStep),
+        ),
         IconButton(
           tooltip: 'Capitoli',
           icon: const Icon(Icons.menu_book),
           onPressed: showChapterSelector,
+        ),
+        PopupMenuButton<String>(
+          tooltip: 'Altro',
+          icon: const Icon(Icons.more_vert),
+          onSelected: (value) {
+            switch (value) {
+              case 'credito':
+                showCreditInfo();
+                break;
+              case 'cache':
+                clearCache();
+                break;
+              case 'pulisci':
+                clearAll();
+                break;
+              case 'selezione':
+                _clearSelection();
+                break;
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(value: 'credito', child: Text('Credito')),
+            const PopupMenuItem(value: 'cache', child: Text('Svuota cache')),
+            const PopupMenuItem(value: 'pulisci', child: Text('Pulisci')),
+            if (selectedText.trim().isNotEmpty)
+              const PopupMenuItem(
+                value: 'selezione',
+                child: Text('Cancella selezione'),
+              ),
+          ],
         ),
       ],
     );
@@ -794,7 +854,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
                   const SizedBox(height: 18),
                   Text(
                     chapter.text,
-                    style: const TextStyle(fontSize: 18, height: 1.5),
+                    style: TextStyle(fontSize: epubFontSize, height: 1.5),
                   ),
                 ],
               ),
