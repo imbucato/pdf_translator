@@ -14,6 +14,7 @@ import 'result_page.dart';
 import '../services/text_cleaner_service.dart';
 import '../widgets/translation_panel.dart';
 import 'history_page.dart';
+import 'home_page.dart';
 
 import '../pages/epub_reader_page.dart';
 import '../services/epub_service.dart';
@@ -587,19 +588,19 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
     });
   }
 
-  void resetToHome() {
+  void returnToHome() {
     autoTranslateTimer?.cancel();
 
-    setState(() {
-      pdfFile = null;
-      pdfStorageKey = null;
-      selectedText = '';
-      resultText = '';
-      resultTitle = 'Risultato';
-      currentPage = 1;
-      isLoading = false;
-      lastAutoTranslateKey = '';
-    });
+    final navigator = Navigator.of(context);
+
+    if (navigator.canPop()) {
+      navigator.popUntil((route) => route.isFirst);
+      return;
+    }
+
+    navigator.pushReplacement(
+      MaterialPageRoute(builder: (_) => const HomePage()),
+    );
   }
 
   void openResult() {
@@ -611,160 +612,128 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
     );
   }
 
-  Widget buildEmptyState() {
+  Widget buildNoPdfState() {
     return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: ElevatedButton.icon(
-                  onPressed: pickDocument,
-                  icon: const Icon(Icons.folder_open),
-                  label: const Text('Apri PDF o EPUB'),
-                ),
-              ),
-              if (recentDocuments.isNotEmpty) ...[
-                const SizedBox(height: 32),
-                Text(
-                  'Ultimi documenti',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                ...recentDocuments.map((document) {
-                  final isPdf = document.type == 'pdf';
-
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      isPdf ? Icons.picture_as_pdf : Icons.menu_book,
-                    ),
-                    title: Text(document.name),
-                    subtitle: Text(
-                      '${document.type.toUpperCase()} - ${document.path}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    onTap: () => openRecentDocument(document),
-                  );
-                }),
-              ],
-            ],
-          ),
-        ),
+      child: ElevatedButton.icon(
+        onPressed: pickDocument,
+        icon: const Icon(Icons.folder_open),
+        label: const Text('Apri PDF o EPUB'),
       ),
+    );
+  }
+
+  Widget buildPdfViewer() {
+    if (pdfFile == null) {
+      return buildNoPdfState();
+    }
+
+    return SfPdfViewer.file(
+      pdfFile!,
+      controller: pdfController,
+      enableTextSelection: true,
+      onDocumentLoaded: (_) {
+        Future.delayed(const Duration(milliseconds: 400), () {
+          if (mounted && currentPage > 1) {
+            pdfController.jumpToPage(currentPage);
+          }
+        });
+      },
+      onPageChanged: (details) {
+        currentPage = details.newPageNumber;
+        saveCurrentPage();
+      },
+      onTextSelectionChanged: (details) {
+        final newText = details.selectedText ?? '';
+
+        setState(() {
+          selectedText = newText;
+        });
+
+        scheduleAutoTranslate(newText);
+      },
+    );
+  }
+
+  Widget buildPdfBody() {
+    return Column(
+      children: [
+        Expanded(child: buildPdfViewer()),
+        TranslationPanel(
+          selectedText: selectedText,
+          resultText: resultText,
+          resultTitle: resultTitle,
+          isLoading: isLoading,
+          currentPage: currentPage,
+          autoTranslate: autoTranslate,
+          selectedProvider: selectedProvider,
+          onProviderChanged: (value) {
+            setState(() {
+              selectedProvider = value;
+              lastAutoTranslateKey = '';
+            });
+
+            storageService.saveProvider(value);
+          },
+          onAutoTranslateChanged: (value) {
+            setState(() {
+              autoTranslate = value;
+              lastAutoTranslateKey = '';
+            });
+
+            storageService.saveAutoTranslate(value);
+
+            if (value && selectedText.trim().isNotEmpty) {
+              scheduleAutoTranslate(selectedText);
+            }
+          },
+          onShowActionPopup: showActionPopup,
+          onAskAi: askAi,
+          onOpenResult: openResult,
+        ),
+      ],
+    );
+  }
+
+  PreferredSizeWidget buildPdfAppBar() {
+    return AppBar(
+      title: const Text('PDF Translator'),
+      actions: [
+        IconButton(
+          tooltip: 'Home',
+          icon: const Icon(Icons.home_outlined),
+          onPressed: returnToHome,
+        ),
+        IconButton(
+          tooltip: 'Credito',
+          icon: const Icon(Icons.account_balance_wallet),
+          onPressed: showCreditInfo,
+        ),
+        IconButton(
+          tooltip: 'Cronologia PDF',
+          icon: const Icon(Icons.history),
+          onPressed: showHistory,
+        ),
+        IconButton(
+          tooltip: 'Svuota cache',
+          icon: const Icon(Icons.cached),
+          onPressed: clearCache,
+        ),
+        IconButton(
+          tooltip: 'Apri PDF o EPUB',
+          icon: const Icon(Icons.folder_open),
+          onPressed: pickDocument,
+        ),
+        IconButton(
+          tooltip: 'Pulisci',
+          icon: const Icon(Icons.clear),
+          onPressed: clearAll,
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final hasPdf = pdfFile != null;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('PDF Translator'),
-        actions: [
-          IconButton(
-            tooltip: 'Home',
-            icon: const Icon(Icons.home_outlined),
-            onPressed: resetToHome,
-          ),
-          IconButton(
-            tooltip: 'Credito',
-            icon: const Icon(Icons.account_balance_wallet),
-            onPressed: showCreditInfo,
-          ),
-          IconButton(
-            tooltip: 'Cronologia PDF',
-            icon: const Icon(Icons.history),
-            onPressed: showHistory,
-          ),
-          IconButton(
-            tooltip: 'Svuota cache',
-            icon: const Icon(Icons.cached),
-            onPressed: clearCache,
-          ),
-          IconButton(
-            tooltip: 'Apri PDF o EPUB',
-            icon: const Icon(Icons.folder_open),
-            onPressed: pickDocument,
-          ),
-          IconButton(
-            tooltip: 'Pulisci',
-            icon: const Icon(Icons.clear),
-            onPressed: clearAll,
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: !hasPdf
-                ? buildEmptyState()
-                : SfPdfViewer.file(
-                    pdfFile!,
-                    controller: pdfController,
-                    enableTextSelection: true,
-                    onDocumentLoaded: (_) {
-                      Future.delayed(const Duration(milliseconds: 400), () {
-                        if (mounted && currentPage > 1) {
-                          pdfController.jumpToPage(currentPage);
-                        }
-                      });
-                    },
-                    onPageChanged: (details) {
-                      currentPage = details.newPageNumber;
-                      saveCurrentPage();
-                    },
-                    onTextSelectionChanged: (details) {
-                      final newText = details.selectedText ?? '';
-
-                      setState(() {
-                        selectedText = newText;
-                      });
-
-                      scheduleAutoTranslate(newText);
-                    },
-                  ),
-          ),
-          TranslationPanel(
-            selectedText: selectedText,
-            resultText: resultText,
-            resultTitle: resultTitle,
-            isLoading: isLoading,
-            currentPage: currentPage,
-            autoTranslate: autoTranslate,
-            selectedProvider: selectedProvider,
-            onProviderChanged: (value) {
-              setState(() {
-                selectedProvider = value;
-                lastAutoTranslateKey = '';
-              });
-
-              storageService.saveProvider(value);
-            },
-            onAutoTranslateChanged: (value) {
-              setState(() {
-                autoTranslate = value;
-                lastAutoTranslateKey = '';
-              });
-
-              storageService.saveAutoTranslate(value);
-
-              if (value && selectedText.trim().isNotEmpty) {
-                scheduleAutoTranslate(selectedText);
-              }
-            },
-            onShowActionPopup: showActionPopup,
-            onAskAi: askAi,
-            onOpenResult: openResult,
-          ),
-        ],
-      ),
-    );
+    return Scaffold(appBar: buildPdfAppBar(), body: buildPdfBody());
   }
 }

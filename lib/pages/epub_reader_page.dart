@@ -12,6 +12,7 @@ import '../services/storage_service.dart';
 import '../services/text_cleaner_service.dart';
 import '../widgets/translation_panel.dart';
 import 'history_page.dart';
+import 'home_page.dart';
 import 'pdf_translator_page.dart';
 import 'result_page.dart';
 
@@ -297,6 +298,14 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       if (!mounted) return;
 
       final file = File(path);
+
+      if (!file.existsSync()) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('File non trovato')));
+        return;
+      }
+
       await _addRecentDocument(path: path, type: 'pdf');
 
       if (!mounted) return;
@@ -312,6 +321,15 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
   Future<void> _openEpubPath(String path) async {
     final file = File(path);
+
+    if (!file.existsSync()) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('File non trovato')));
+      return;
+    }
 
     try {
       final book = await EpubService().readEpub(file);
@@ -664,9 +682,15 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     _autoTranslateTimer?.cancel();
     _savePositionDebounce?.cancel();
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const PdfTranslatorPage()),
+    final navigator = Navigator.of(context);
+
+    if (navigator.canPop()) {
+      navigator.popUntil((route) => route.isFirst);
+      return;
+    }
+
+    navigator.pushReplacement(
+      MaterialPageRoute(builder: (_) => const HomePage()),
     );
   }
 

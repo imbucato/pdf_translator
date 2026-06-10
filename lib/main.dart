@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-import 'pages/pdf_translator_page.dart';
+import 'pages/home_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,7 +18,7 @@ class PdfTranslatorApp extends StatelessWidget {
       title: 'PDF Translator',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: true),
-      home: const PdfTranslatorPage(),
+      home: const HomePage(),
     );
   }
 }
