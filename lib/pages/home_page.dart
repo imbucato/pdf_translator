@@ -53,6 +53,22 @@ class _HomePageState extends State<HomePage> {
     await _openDocumentPath(document.path);
   }
 
+  Future<void> _removeRecentDocument(RecentDocument document) async {
+    await _storageService.removeRecentDocument(document.path);
+    await _loadRecentDocuments();
+  }
+
+  Future<void> _clearRecentDocuments() async {
+    await _storageService.clearRecentDocuments();
+    await _loadRecentDocuments();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Elenco recenti svuotato')));
+  }
+
   Future<void> _openDocumentPath(String path) async {
     final file = File(path);
 
@@ -283,6 +299,13 @@ class _HomePageState extends State<HomePage> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
+            trailing: IconButton(
+              tooltip: 'Rimuovi dai recenti',
+              icon: const Icon(Icons.close),
+              onPressed: _isOpeningDocument
+                  ? null
+                  : () => _removeRecentDocument(document),
+            ),
             onTap: _isOpeningDocument
                 ? null
                 : () => _openRecentDocument(document),
@@ -303,11 +326,24 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Ultimi documenti',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Ultimi documenti',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Svuota recenti',
+                  icon: const Icon(Icons.clear_all),
+                  onPressed: _recentDocuments.isEmpty || _isOpeningDocument
+                      ? null
+                      : _clearRecentDocuments,
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             content,

@@ -601,16 +601,6 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     );
   }
 
-  void _clearSelection() {
-    _autoTranslateTimer?.cancel();
-
-    setState(() {
-      selectedText = '';
-      selectedTextScrollOffset = null;
-      _selectionClearVersion++;
-    });
-  }
-
   void _openHistoryItem(HistoryItem item) {
     Navigator.pop(context);
 
@@ -1057,10 +1047,16 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
           onPressed: () => _changeEpubFontSize(_epubFontSizeStep),
         ),
         IconButton(
+          tooltip: 'Pulisci',
+          icon: const Icon(Icons.clear),
+          onPressed: clearAll,
+        ),
+        IconButton(
           tooltip: 'Capitoli',
           icon: const Icon(Icons.menu_book),
           onPressed: showChapterSelector,
         ),
+
         PopupMenuButton<String>(
           tooltip: 'Altro',
           icon: const Icon(Icons.more_vert),
@@ -1071,12 +1067,6 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
                 break;
               case 'cache':
                 clearCache();
-                break;
-              case 'pulisci':
-                clearAll();
-                break;
-              case 'selezione':
-                _clearSelection();
                 break;
               case 'lettura':
                 _showReadingSettingsSheet();
@@ -1090,12 +1080,6 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
             ),
             const PopupMenuItem(value: 'credito', child: Text('Credito')),
             const PopupMenuItem(value: 'cache', child: Text('Svuota cache')),
-            const PopupMenuItem(value: 'pulisci', child: Text('Pulisci')),
-            if (selectedText.trim().isNotEmpty)
-              const PopupMenuItem(
-                value: 'selezione',
-                child: Text('Cancella selezione'),
-              ),
           ],
         ),
       ],

@@ -696,7 +696,6 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
 
   PreferredSizeWidget buildPdfAppBar() {
     return AppBar(
-      title: const Text('PDF Translator'),
       actions: [
         IconButton(
           tooltip: 'Home',

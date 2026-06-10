@@ -119,6 +119,11 @@ class StorageService {
     );
   }
 
+  Future<void> clearRecentDocuments() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('recent_documents');
+  }
+
   Future<String> makePdfStorageKey(String path) async {
     final file = File(path);
     final name = path.split(Platform.pathSeparator).last;
