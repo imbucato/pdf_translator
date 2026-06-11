@@ -168,37 +168,76 @@ class _HomePageState extends State<HomePage> {
     ).showSnackBar(const SnackBar(content: Text('File non trovato')));
   }
 
+  String _formatOpenedAt(DateTime openedAt) {
+    if (openedAt.millisecondsSinceEpoch == 0) return '';
+
+    final day = openedAt.day.toString().padLeft(2, '0');
+    final month = openedAt.month.toString().padLeft(2, '0');
+    final year = openedAt.year.toString();
+    final hour = openedAt.hour.toString().padLeft(2, '0');
+    final minute = openedAt.minute.toString().padLeft(2, '0');
+
+    return '$day/$month/$year $hour:$minute';
+  }
+
   Widget _buildHeader(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(Icons.auto_stories_outlined, size: 40, color: colorScheme.primary),
-        const SizedBox(height: 18),
-        Text(
-          'AI Reader',
-          style: Theme.of(
-            context,
-          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
+    return Card(
+      elevation: 3,
+      shadowColor: colorScheme.shadow.withValues(alpha: 0.16),
+      margin: EdgeInsets.zero,
+      color: colorScheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 68,
+              height: 68,
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(
+                Icons.auto_stories,
+                color: colorScheme.onPrimaryContainer,
+                size: 36,
+              ),
+            ),
+            const SizedBox(height: 22),
+            Text(
+              'AI Reader',
+              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Leggi, traduci e approfondisci PDF ed EPUB',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                height: 1.35,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Leggi, traduci e analizza PDF ed EPUB',
-          style: Theme.of(
-            context,
-          ).textTheme.bodyLarge?.copyWith(color: colorScheme.onSurfaceVariant),
-        ),
-      ],
+      ),
     );
   }
 
   Widget _buildOpenDocumentAction(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Material(
-      color: colorScheme.primaryContainer,
-      borderRadius: BorderRadius.circular(8),
+    return Card(
+      elevation: 4,
+      shadowColor: colorScheme.primary.withValues(alpha: 0.26),
+      margin: EdgeInsets.zero,
+      color: colorScheme.primary,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: _isOpeningDocument ? null : _pickDocument,
@@ -207,23 +246,27 @@ class _HomePageState extends State<HomePage> {
           child: Row(
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: 58,
+                height: 58,
                 decoration: BoxDecoration(
-                  color: colorScheme.primary,
-                  borderRadius: BorderRadius.circular(8),
+                  color: colorScheme.onPrimary.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(18),
                 ),
                 child: Center(
                   child: _isOpeningDocument
                       ? SizedBox(
-                          width: 22,
-                          height: 22,
+                          width: 24,
+                          height: 24,
                           child: CircularProgressIndicator(
-                            strokeWidth: 2.4,
+                            strokeWidth: 2.6,
                             color: colorScheme.onPrimary,
                           ),
                         )
-                      : Icon(Icons.folder_open, color: colorScheme.onPrimary),
+                      : Icon(
+                          Icons.folder_open,
+                          color: colorScheme.onPrimary,
+                          size: 30,
+                        ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -233,22 +276,34 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     Text(
                       'Apri documento',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: colorScheme.onPrimaryContainer,
-                        fontWeight: FontWeight.w700,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: colorScheme.onPrimary,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'PDF o EPUB',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onPrimaryContainer,
+                        color: colorScheme.onPrimary.withValues(alpha: 0.86),
                       ),
                     ),
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, color: colorScheme.onPrimaryContainer),
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: colorScheme.onPrimary.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.chevron_right,
+                  color: colorScheme.onPrimary,
+                  size: 24,
+                ),
+              ),
             ],
           ),
         ),
@@ -256,120 +311,213 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildRecentDocumentsSection(BuildContext context) {
+  Widget _buildEmptyRecentDocuments(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    Widget content;
-
-    if (_recentDocuments.isEmpty) {
-      content = Padding(
-        padding: const EdgeInsets.symmetric(vertical: 28),
+    return Card(
+      elevation: 1,
+      margin: EdgeInsets.zero,
+      color: colorScheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
         child: Column(
           children: [
-            Icon(Icons.history, size: 34, color: colorScheme.onSurfaceVariant),
-            const SizedBox(height: 10),
-            Text(
-              'Nessun documento recente',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Icon(
+                Icons.history,
+                size: 30,
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
-          ],
-        ),
-      );
-    } else {
-      content = Column(
-        children: _recentDocuments.map((document) {
-          final isPdf = document.type.toLowerCase() == 'pdf';
-          final typeLabel = isPdf ? 'PDF' : 'EPUB';
-
-          return ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-            leading: Icon(
-              isPdf ? Icons.picture_as_pdf : Icons.menu_book,
-              color: isPdf ? colorScheme.error : colorScheme.primary,
+            const SizedBox(height: 14),
+            Text(
+              'Nessun documento recente',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              textAlign: TextAlign.center,
             ),
-            title: Text(
-              document.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            const SizedBox(height: 6),
+            Text(
+              'Apri un PDF o un EPUB per iniziare',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                height: 1.35,
+              ),
+              textAlign: TextAlign.center,
             ),
-            subtitle: Text(
-              '$typeLabel - ${document.path}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            trailing: IconButton(
-              tooltip: 'Rimuovi dai recenti',
-              icon: const Icon(Icons.close),
-              onPressed: _isOpeningDocument
-                  ? null
-                  : () => _removeRecentDocument(document),
-            ),
-            onTap: _isOpeningDocument
-                ? null
-                : () => _openRecentDocument(document),
-          );
-        }).toList(),
-      );
-    }
-
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: colorScheme.outlineVariant),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Ultimi documenti',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Svuota recenti',
-                  icon: const Icon(Icons.clear_all),
-                  onPressed: _recentDocuments.isEmpty || _isOpeningDocument
-                      ? null
-                      : _clearRecentDocuments,
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            content,
           ],
         ),
       ),
     );
   }
 
+  Widget _buildRecentDocumentCard(
+    BuildContext context,
+    RecentDocument document,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final type = document.type.toLowerCase();
+    final isPdf = type == 'pdf';
+    final typeLabel = isPdf ? 'PDF' : 'EPUB';
+    final openedAt = _formatOpenedAt(document.openedAt);
+
+    return Card(
+      elevation: 1.5,
+      shadowColor: colorScheme.shadow.withValues(alpha: 0.10),
+      margin: const EdgeInsets.only(bottom: 12),
+      color: colorScheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        contentPadding: const EdgeInsets.fromLTRB(16, 10, 6, 10),
+        minLeadingWidth: 42,
+        leading: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: isPdf
+                ? colorScheme.errorContainer
+                : colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(
+            isPdf ? Icons.picture_as_pdf : Icons.menu_book,
+            color: isPdf
+                ? colorScheme.onErrorContainer
+                : colorScheme.onSecondaryContainer,
+            size: 24,
+          ),
+        ),
+        title: Text(
+          document.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  typeLabel,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+              if (openedAt.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    openedAt,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        trailing: IconButton(
+          tooltip: 'Rimuovi dai recenti',
+          icon: const Icon(Icons.close),
+          onPressed: _isOpeningDocument
+              ? null
+              : () => _removeRecentDocument(document),
+        ),
+        onTap: _isOpeningDocument ? null : () => _openRecentDocument(document),
+      ),
+    );
+  }
+
+  Widget _buildRecentDocumentsHeader(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Ultimi documenti',
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+        ),
+        IconButton.filledTonal(
+          tooltip: 'Svuota recenti',
+          icon: const Icon(Icons.clear_all),
+          onPressed: _recentDocuments.isEmpty || _isOpeningDocument
+              ? null
+              : _clearRecentDocuments,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentDocumentsList(BuildContext context) {
+    if (_recentDocuments.isEmpty) {
+      return _buildEmptyRecentDocuments(context);
+    }
+
+    return Column(
+      children: _recentDocuments
+          .map((document) => _buildRecentDocumentCard(context, document))
+          .toList(),
+    );
+  }
+
+  Widget _buildRecentDocumentsSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildRecentDocumentsHeader(context),
+        const SizedBox(height: 12),
+        _buildRecentDocumentsList(context),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('AI Reader')),
+      backgroundColor: Color.alphaBlend(
+        colorScheme.primary.withValues(alpha: 0.035),
+        colorScheme.surface,
+      ),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+          child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _buildHeader(context),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 18),
                   _buildOpenDocumentAction(context),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 28),
                   _buildRecentDocumentsSection(context),
                 ],
               ),
