@@ -59,10 +59,10 @@ ${item.result}
 <html>
 <head>
 <meta charset="utf-8">
-<title>PDF Translator Export</title>
+<title>AI Reader Export</title>
 </head>
 <body>
-<h1>Cronologia PDF Translator</h1>
+<h1>Cronologia AI Reader</h1>
 ${history.map((item) {
         return '''
 <h2>${htmlEscape.convert(item.action)} Â· ${htmlEscape.convert(item.provider)} - pagina ${item.page}</h2>

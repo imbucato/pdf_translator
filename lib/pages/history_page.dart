@@ -22,8 +22,8 @@ class HistoryPage extends StatefulWidget {
     required this.onExportHistory,
     required this.onClearPdfHistory,
     required this.onDeleteItem,
-    this.clearHistoryLabel = 'Svuota PDF',
-    this.emptyHistoryLabel = 'Nessuna cronologia per questo PDF',
+    this.clearHistoryLabel = 'Svuota documento',
+    this.emptyHistoryLabel = 'Nessuna cronologia per questo documento',
     this.locationLabel = 'pagina',
   });
 

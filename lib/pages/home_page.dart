@@ -177,7 +177,7 @@ class _HomePageState extends State<HomePage> {
         Icon(Icons.auto_stories_outlined, size: 40, color: colorScheme.primary),
         const SizedBox(height: 18),
         Text(
-          'PDF Translator',
+          'AI Reader',
           style: Theme.of(
             context,
           ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
@@ -356,7 +356,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('PDF Translator')),
+      appBar: AppBar(title: const Text('AI Reader')),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
