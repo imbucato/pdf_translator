@@ -134,31 +134,144 @@ class TranslationPanel extends StatelessWidget {
     );
   }
 
+  IconData _resultIcon() {
+    final normalizedTitle = resultTitle.toLowerCase();
+
+    if (normalizedTitle.contains('traduci') ||
+        normalizedTitle.contains('traduzione')) {
+      return Icons.translate;
+    }
+    if (normalizedTitle.contains('spiega') ||
+        normalizedTitle.contains('spiegazione')) {
+      return Icons.lightbulb_outline;
+    }
+    if (normalizedTitle.contains('riassumi') ||
+        normalizedTitle.contains('riassunto') ||
+        normalizedTitle.contains('sunto')) {
+      return Icons.summarize;
+    }
+    if (normalizedTitle.contains('vocabolario')) {
+      return Icons.menu_book;
+    }
+
+    return Icons.auto_awesome;
+  }
+
+  Color _resultAccentColor(ColorScheme colorScheme) {
+    final normalizedTitle = resultTitle.toLowerCase();
+
+    if (normalizedTitle.contains('traduci') ||
+        normalizedTitle.contains('traduzione')) {
+      return Colors.blue.shade700;
+    }
+    if (normalizedTitle.contains('spiega') ||
+        normalizedTitle.contains('spiegazione')) {
+      return Colors.orange.shade800;
+    }
+    if (normalizedTitle.contains('riassumi') ||
+        normalizedTitle.contains('riassunto') ||
+        normalizedTitle.contains('sunto')) {
+      return Colors.green.shade700;
+    }
+    if (normalizedTitle.contains('vocabolario')) {
+      return Colors.purple.shade700;
+    }
+
+    return colorScheme.primary;
+  }
+
+  Color _resultAccentBackground(ColorScheme colorScheme) {
+    final normalizedTitle = resultTitle.toLowerCase();
+
+    if (normalizedTitle.contains('traduci') ||
+        normalizedTitle.contains('traduzione')) {
+      return Colors.blue.shade50;
+    }
+    if (normalizedTitle.contains('spiega') ||
+        normalizedTitle.contains('spiegazione')) {
+      return Colors.orange.shade50;
+    }
+    if (normalizedTitle.contains('riassumi') ||
+        normalizedTitle.contains('riassunto') ||
+        normalizedTitle.contains('sunto')) {
+      return Colors.green.shade50;
+    }
+    if (normalizedTitle.contains('vocabolario')) {
+      return Colors.purple.shade50;
+    }
+
+    return colorScheme.primaryContainer.withValues(alpha: 0.55);
+  }
+
   Widget _buildResultArea(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final accentColor = _resultAccentColor(colorScheme);
+    final accentBackground = _resultAccentBackground(colorScheme);
 
     if (!isLoading && resultText.isEmpty) return const SizedBox.shrink();
 
+    if (isLoading && resultText.isEmpty) {
+      return Card(
+        elevation: 1.5,
+        margin: EdgeInsets.zero,
+        color: colorScheme.surfaceContainerLowest,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.4,
+                  color: accentColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Elaborazione in corso...',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Card(
-      elevation: 1,
+      elevation: 1.5,
       margin: EdgeInsets.zero,
       color: colorScheme.surfaceContainerLowest,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               children: [
-                Icon(Icons.auto_awesome, size: 18, color: colorScheme.primary),
-                const SizedBox(width: 8),
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: accentBackground,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(_resultIcon(), size: 19, color: accentColor),
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    resultText.isEmpty ? 'Risultato AI' : resultTitle,
+                    resultTitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -172,19 +285,40 @@ class TranslationPanel extends StatelessWidget {
               ],
             ),
             if (isLoading) ...[
-              const SizedBox(height: 10),
-              const LinearProgressIndicator(),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: accentColor,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Elaborazione in corso...',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
             if (resultText.isNotEmpty) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 180),
                 child: SingleChildScrollView(
                   child: SelectableText(
                     resultText,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(height: 1.42),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontSize: 15,
+                      height: 1.38,
+                    ),
                   ),
                 ),
               ),
