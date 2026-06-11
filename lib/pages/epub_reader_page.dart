@@ -1022,11 +1022,6 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       //title: Text(widget.book.title, overflow: TextOverflow.ellipsis),
       actions: [
         IconButton(
-          tooltip: 'Home',
-          icon: const Icon(Icons.home_outlined),
-          onPressed: resetToHome,
-        ),
-        IconButton(
           tooltip: 'Cronologia EPUB',
           icon: const Icon(Icons.history),
           onPressed: showEpubHistory,

@@ -698,11 +698,6 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
     return AppBar(
       actions: [
         IconButton(
-          tooltip: 'Home',
-          icon: const Icon(Icons.home_outlined),
-          onPressed: returnToHome,
-        ),
-        IconButton(
           tooltip: 'Credito',
           icon: const Icon(Icons.account_balance_wallet),
           onPressed: showCreditInfo,
