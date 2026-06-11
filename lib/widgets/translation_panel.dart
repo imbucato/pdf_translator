@@ -36,8 +36,168 @@ class TranslationPanel extends StatelessWidget {
   final String? locationLabel;
   final String? emptySelectionMessage;
 
+  Widget _buildActionButton({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required VoidCallback? onPressed,
+    required Color iconColor,
+    required Color backgroundColor,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDisabled = onPressed == null;
+
+    return Material(
+      color: isDisabled ? colorScheme.surfaceContainerHighest : backgroundColor,
+      borderRadius: BorderRadius.circular(999),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: isDisabled ? colorScheme.onSurfaceVariant : iconColor,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: isDisabled
+                      ? colorScheme.onSurfaceVariant
+                      : colorScheme.onSurface,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionWrap(BuildContext context) {
+    final disabled = isLoading;
+
+    return Row(
+      children: [
+        const SizedBox(width: 5),
+        Expanded(
+          child: _buildActionButton(
+            context: context,
+            icon: Icons.translate,
+            label: 'Traduci',
+            iconColor: Colors.blue.shade700,
+            backgroundColor: Colors.blue.shade50,
+            onPressed: disabled ? null : () => onAskAi('traduci'),
+          ),
+        ),
+        const SizedBox(width: 5),
+        Expanded(
+          child: _buildActionButton(
+            context: context,
+            icon: Icons.lightbulb_outline,
+            label: 'Spiega',
+            iconColor: Colors.orange.shade800,
+            backgroundColor: Colors.orange.shade50,
+            onPressed: disabled ? null : () => onAskAi('spiega'),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: _buildActionButton(
+            context: context,
+            icon: Icons.summarize,
+            label: 'Sunto',
+            iconColor: Colors.green.shade700,
+            backgroundColor: Colors.green.shade50,
+            onPressed: disabled ? null : () => onAskAi('riassumi'),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: _buildActionButton(
+            context: context,
+            icon: Icons.menu_book,
+            label: 'Vocab.',
+            iconColor: Colors.purple.shade700,
+            backgroundColor: Colors.purple.shade50,
+            onPressed: disabled ? null : () => onAskAi('vocabolario'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildResultArea(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    if (!isLoading && resultText.isEmpty) return const SizedBox.shrink();
+
+    return Card(
+      elevation: 1,
+      margin: EdgeInsets.zero,
+      color: colorScheme.surfaceContainerLowest,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.auto_awesome, size: 18, color: colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    resultText.isEmpty ? 'Risultato AI' : resultTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                if (resultText.isNotEmpty)
+                  IconButton(
+                    tooltip: 'Apri risultato',
+                    icon: const Icon(Icons.open_in_full),
+                    onPressed: onOpenResult,
+                  ),
+              ],
+            ),
+            if (isLoading) ...[
+              const SizedBox(height: 10),
+              const LinearProgressIndicator(),
+            ],
+            if (resultText.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 180),
+                child: SingleChildScrollView(
+                  child: SelectableText(
+                    resultText,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(height: 1.42),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final hasSelection = selectedText.trim().isNotEmpty;
     final isLimited = selectedText.trim().length > 1200;
     final selectedLocationLabel = locationLabel ?? 'pagina $currentPage';
@@ -49,8 +209,8 @@ class TranslationPanel extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(top: BorderSide(color: Colors.grey.shade300)),
+        color: colorScheme.surface,
+        border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
       ),
       child: SafeArea(
         top: false,
@@ -103,7 +263,7 @@ class TranslationPanel extends StatelessWidget {
                 ),
               ),
             if (hasSelection) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Text(
                 selectedText.length > 180
                     ? '${selectedText.substring(0, 180)}...'
@@ -112,67 +272,11 @@ class TranslationPanel extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  FilledButton.icon(
-                    onPressed: isLoading ? null : onShowActionPopup,
-                    icon: const Icon(Icons.touch_app),
-                    label: const Text('Azioni'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: isLoading ? null : () => onAskAi('traduci'),
-                    icon: const Icon(Icons.translate),
-                    label: const Text('Traduci'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: isLoading ? null : () => onAskAi('spiega'),
-                    icon: const Icon(Icons.lightbulb_outline),
-                    label: const Text('Spiega'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: isLoading ? null : () => onAskAi('riassumi'),
-                    icon: const Icon(Icons.short_text),
-                    label: const Text('Riassumi'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: isLoading ? null : () => onAskAi('vocabolario'),
-                    icon: const Icon(Icons.menu_book),
-                    label: const Text('Vocabolario'),
-                  ),
-                ],
-              ),
+              _buildActionWrap(context),
             ],
-            if (isLoading) ...[
+            if (isLoading || resultText.isNotEmpty) ...[
               const SizedBox(height: 12),
-              const LinearProgressIndicator(),
-            ],
-            if (resultText.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                resultTitle,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.open_in_full),
-                  label: const Text('Apri risultato'),
-                  onPressed: onOpenResult,
-                ),
-              ),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 180),
-                child: SingleChildScrollView(
-                  child: SelectableText(
-                    resultText,
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                ),
-              ),
+              _buildResultArea(context),
             ],
           ],
         ),
