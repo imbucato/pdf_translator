@@ -1031,16 +1031,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
           icon: const Icon(Icons.folder_open),
           onPressed: pickDocument,
         ),
-        IconButton(
-          tooltip: 'Riduci carattere',
-          icon: const Icon(Icons.text_decrease),
-          onPressed: () => _changeEpubFontSize(-_epubFontSizeStep),
-        ),
-        IconButton(
-          tooltip: 'Aumenta carattere',
-          icon: const Icon(Icons.text_increase),
-          onPressed: () => _changeEpubFontSize(_epubFontSizeStep),
-        ),
+
         IconButton(
           tooltip: 'Pulisci',
           icon: const Icon(Icons.clear),
@@ -1057,18 +1048,44 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
           icon: const Icon(Icons.more_vert),
           onSelected: (value) {
             switch (value) {
-              case 'credito':
-                showCreditInfo();
+              case 'font_minus':
+                _changeEpubFontSize(-_epubFontSizeStep);
                 break;
-              case 'cache':
-                clearCache();
+              case 'font_plus':
+                _changeEpubFontSize(_epubFontSizeStep);
                 break;
               case 'lettura':
                 _showReadingSettingsSheet();
                 break;
+              case 'cache':
+                clearCache();
+                break;
+              case 'credito':
+                showCreditInfo();
+                break;
             }
           },
           itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'font_minus',
+              child: Row(
+                children: [
+                  Icon(Icons.text_decrease),
+                  SizedBox(width: 12),
+                  Text('Riduci carattere'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'font_plus',
+              child: Row(
+                children: [
+                  Icon(Icons.text_increase),
+                  SizedBox(width: 12),
+                  Text('Aumenta carattere'),
+                ],
+              ),
+            ),
             const PopupMenuItem(
               value: 'lettura',
               child: Text('Impostazioni lettura'),
