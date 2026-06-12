@@ -709,11 +709,29 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     _savePositionDebounce = Timer(const Duration(milliseconds: 400), () {
       if (!_scrollController.hasClients) return;
 
-      _storageService.saveEpubScrollOffset(
-        epubStorageKey: _epubStorageKey,
-        scrollOffset: _scrollController.offset,
-      );
+      unawaited(_saveCurrentEpubPosition());
     });
+  }
+
+  Future<void> _saveCurrentEpubPosition() async {
+    if (!_scrollController.hasClients) return;
+
+    final position = _scrollController.position;
+    final offset = position.pixels.clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+
+    await _storageService.saveEpubScrollOffset(
+      epubStorageKey: _epubStorageKey,
+      scrollOffset: offset,
+    );
+
+    final maxScrollExtent = position.maxScrollExtent;
+    if (maxScrollExtent <= 0) return;
+
+    final percent = ((offset / maxScrollExtent) * 100).round().clamp(0, 100);
+    await _storageService.saveEpubProgress(_epubStorageKey, percent);
   }
 
   void _scrollToChapter(int index) {
@@ -769,12 +787,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     _autoTranslateTimer?.cancel();
 
     if (_scrollController.hasClients) {
-      unawaited(
-        _storageService.saveEpubScrollOffset(
-          epubStorageKey: _epubStorageKey,
-          scrollOffset: _scrollController.offset,
-        ),
-      );
+      unawaited(_saveCurrentEpubPosition());
     }
 
     _scrollController.dispose();

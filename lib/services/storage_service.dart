@@ -137,6 +137,11 @@ class StorageService {
     return prefs.getInt(key) ?? 1;
   }
 
+  Future<int?> loadSavedPageOrNull(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.containsKey(key) ? prefs.getInt(key) : null;
+  }
+
   Future<void> saveCurrentPage({
     required String pdfStorageKey,
     required int currentPage,
@@ -154,6 +159,29 @@ class StorageService {
   Future<double> loadSavedEpubScrollOffset(String key) async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getDouble(key) ?? 0;
+  }
+
+  Future<double?> loadSavedEpubScrollOffsetOrNull(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.containsKey(key) ? prefs.getDouble(key) : null;
+  }
+
+  String _epubProgressKey(String epubStorageKey) {
+    return '${epubStorageKey}_progress';
+  }
+
+  Future<int?> loadEpubProgress(String epubStorageKey) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = _epubProgressKey(epubStorageKey);
+
+    return prefs.containsKey(key) ? prefs.getInt(key) : null;
+  }
+
+  Future<void> saveEpubProgress(String epubStorageKey, int percent) async {
+    final prefs = await SharedPreferences.getInstance();
+    final clampedPercent = percent.clamp(0, 100);
+
+    await prefs.setInt(_epubProgressKey(epubStorageKey), clampedPercent);
   }
 
   Future<void> saveEpubScrollOffset({

@@ -20,6 +20,7 @@ class _HomePageState extends State<HomePage> {
   final StorageService _storageService = StorageService();
 
   List<RecentDocument> _recentDocuments = [];
+  Map<String, String> _recentPositionLabels = {};
   bool _isOpeningDocument = false;
 
   @override
@@ -36,6 +37,77 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _recentDocuments = documents;
     });
+
+    await _loadRecentPositionLabels(documents);
+  }
+
+  Future<void> _loadRecentPositionLabels(List<RecentDocument> documents) async {
+    final labels = <String, String>{};
+
+    for (final document in documents) {
+      labels[document.path] = await _recentPositionLabel(document);
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _recentPositionLabels = labels;
+    });
+  }
+
+  Future<String> _recentPositionLabel(RecentDocument document) async {
+    final type = document.type.toLowerCase();
+
+    if (type == 'pdf') {
+      return _pdfPositionLabel(document);
+    }
+
+    if (type == 'epub') {
+      return _epubPositionLabel(document);
+    }
+
+    return document.type.toUpperCase();
+  }
+
+  Future<String> _pdfPositionLabel(RecentDocument document) async {
+    const fallbackLabel = 'PDF';
+    final file = File(document.path);
+
+    if (!file.existsSync()) return fallbackLabel;
+
+    try {
+      final key = await _storageService.makePdfStorageKey(document.path);
+      final page = await _storageService.loadSavedPageOrNull(key);
+
+      if (page == null) return fallbackLabel;
+
+      return 'PDF · Pagina $page';
+    } catch (_) {
+      return fallbackLabel;
+    }
+  }
+
+  Future<String> _epubPositionLabel(RecentDocument document) async {
+    const fallbackLabel = 'EPUB';
+    final file = File(document.path);
+
+    if (!file.existsSync()) return fallbackLabel;
+
+    try {
+      final book = await EpubService().readEpub(file);
+      final key = _storageService.makeEpubStorageKey(book.title);
+      final progress = await _storageService.loadEpubProgress(key);
+
+      if (progress != null) return 'EPUB · $progress%';
+
+      final offset = await _storageService.loadSavedEpubScrollOffsetOrNull(key);
+
+      if (offset == null || offset <= 0) return fallbackLabel;
+
+      return 'EPUB · Posizione salvata';
+    } catch (_) {
+      return fallbackLabel;
+    }
   }
 
   Future<void> _pickDocument() async {
@@ -457,6 +529,7 @@ class _HomePageState extends State<HomePage> {
     final type = document.type.toLowerCase();
     final isPdf = type == 'pdf';
     final typeLabel = isPdf ? 'PDF' : 'EPUB';
+    final positionLabel = _recentPositionLabels[document.path] ?? typeLabel;
     final openedAt = _formatOpenedAt(document.openedAt);
 
     return Card(
@@ -505,7 +578,7 @@ class _HomePageState extends State<HomePage> {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  typeLabel,
+                  positionLabel,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w800,
