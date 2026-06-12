@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/ai_service.dart';
 
-class TranslationPanel extends StatelessWidget {
+class TranslationPanel extends StatefulWidget {
   const TranslationPanel({
     super.key,
     required this.selectedText,
@@ -35,6 +35,38 @@ class TranslationPanel extends StatelessWidget {
   final VoidCallback onOpenResult;
   final String? locationLabel;
   final String? emptySelectionMessage;
+
+  @override
+  State<TranslationPanel> createState() => _TranslationPanelState();
+}
+
+class _TranslationPanelState extends State<TranslationPanel> {
+  bool _showSelectedTextPreview = false;
+
+  String get selectedText => widget.selectedText;
+  String get resultText => widget.resultText;
+  String get resultTitle => widget.resultTitle;
+  bool get isLoading => widget.isLoading;
+  int get currentPage => widget.currentPage;
+  bool get autoTranslate => widget.autoTranslate;
+  AiProvider get selectedProvider => widget.selectedProvider;
+  ValueChanged<AiProvider> get onProviderChanged => widget.onProviderChanged;
+  ValueChanged<bool> get onAutoTranslateChanged =>
+      widget.onAutoTranslateChanged;
+  VoidCallback get onShowActionPopup => widget.onShowActionPopup;
+  ValueChanged<String> get onAskAi => widget.onAskAi;
+  VoidCallback get onOpenResult => widget.onOpenResult;
+  String? get locationLabel => widget.locationLabel;
+  String? get emptySelectionMessage => widget.emptySelectionMessage;
+
+  @override
+  void didUpdateWidget(covariant TranslationPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.selectedText != oldWidget.selectedText) {
+      _showSelectedTextPreview = false;
+    }
+  }
 
   Widget _buildActionButton({
     required BuildContext context,
@@ -406,42 +438,74 @@ class TranslationPanel extends StatelessWidget {
                 Switch(value: autoTranslate, onChanged: onAutoTranslateChanged),
               ],
             ),
-            Text(
-              hasSelection
-                  ? 'Testo selezionato: ${selectedText.length} caratteri - $selectedLocationLabel'
-                  : noSelectionMessage,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: hasSelection
-                    ? colorScheme.onSurface
-                    : colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w800,
+            if (hasSelection)
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Testo selezionato: ${selectedText.length} caratteri - $selectedLocationLabel',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _showSelectedTextPreview = !_showSelectedTextPreview;
+                      });
+                    },
+                    child: Text(
+                      _showSelectedTextPreview ? 'Nascondi' : 'Mostra',
+                    ),
+                  ),
+                ],
+              )
+            else
+              Text(
+                noSelectionMessage,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
-            if (isLimited)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
+            if (hasSelection) ...[
+              if (_showSelectedTextPreview) ...[
+                const SizedBox(height: 8),
+                Container(
+                  constraints: const BoxConstraints(maxHeight: 120),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: colorScheme.outlineVariant),
+                  ),
+                  child: SingleChildScrollView(
+                    child: SelectableText(
+                      selectedText,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        height: 1.32,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              _buildActionWrap(context),
+              if (isLimited) ...[
+                const SizedBox(height: 4),
+                Text(
                   'Verranno inviati solo i primi 1200 caratteri.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
-              ),
-            if (hasSelection) ...[
-              const SizedBox(height: 8),
-              Text(
-                selectedText.length > 180
-                    ? '${selectedText.substring(0, 180)}...'
-                    : selectedText,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                  height: 1.32,
-                ),
-              ),
-              const SizedBox(height: 10),
-              _buildActionWrap(context),
+              ],
             ],
             if (isLoading || resultText.isNotEmpty) ...[
               const SizedBox(height: 12),
