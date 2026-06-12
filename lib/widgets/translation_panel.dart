@@ -50,6 +50,7 @@ class TranslationPanel extends StatelessWidget {
     return Material(
       color: isDisabled ? colorScheme.surfaceContainerHighest : backgroundColor,
       borderRadius: BorderRadius.circular(999),
+      surfaceTintColor: colorScheme.surfaceTint,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onPressed,
@@ -67,9 +68,7 @@ class TranslationPanel extends StatelessWidget {
               Text(
                 label,
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: isDisabled
-                      ? colorScheme.onSurfaceVariant
-                      : colorScheme.onSurface,
+                  color: isDisabled ? colorScheme.onSurfaceVariant : iconColor,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0,
                 ),
@@ -83,6 +82,7 @@ class TranslationPanel extends StatelessWidget {
 
   Widget _buildActionWrap(BuildContext context) {
     final disabled = isLoading;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Row(
       children: [
@@ -92,8 +92,10 @@ class TranslationPanel extends StatelessWidget {
             context: context,
             icon: Icons.translate,
             label: 'Traduci',
-            iconColor: Colors.blue.shade700,
-            backgroundColor: Colors.blue.shade50,
+            iconColor: colorScheme.primary,
+            backgroundColor: colorScheme.primaryContainer.withValues(
+              alpha: 0.62,
+            ),
             onPressed: disabled ? null : () => onAskAi('traduci'),
           ),
         ),
@@ -103,8 +105,8 @@ class TranslationPanel extends StatelessWidget {
             context: context,
             icon: Icons.lightbulb_outline,
             label: 'Spiega',
-            iconColor: Colors.orange.shade800,
-            backgroundColor: Colors.orange.shade50,
+            iconColor: const Color(0xFFB45309),
+            backgroundColor: const Color(0xFFFFF7ED),
             onPressed: disabled ? null : () => onAskAi('spiega'),
           ),
         ),
@@ -114,8 +116,8 @@ class TranslationPanel extends StatelessWidget {
             context: context,
             icon: Icons.summarize,
             label: 'Sunto',
-            iconColor: Colors.green.shade700,
-            backgroundColor: Colors.green.shade50,
+            iconColor: const Color(0xFF15803D),
+            backgroundColor: const Color(0xFFF0FDF4),
             onPressed: disabled ? null : () => onAskAi('riassumi'),
           ),
         ),
@@ -125,8 +127,10 @@ class TranslationPanel extends StatelessWidget {
             context: context,
             icon: Icons.menu_book,
             label: 'Vocab.',
-            iconColor: Colors.purple.shade700,
-            backgroundColor: Colors.purple.shade50,
+            iconColor: colorScheme.secondary,
+            backgroundColor: colorScheme.secondaryContainer.withValues(
+              alpha: 0.66,
+            ),
             onPressed: disabled ? null : () => onAskAi('vocabolario'),
           ),
         ),
@@ -162,7 +166,7 @@ class TranslationPanel extends StatelessWidget {
 
     if (normalizedTitle.contains('traduci') ||
         normalizedTitle.contains('traduzione')) {
-      return Colors.blue.shade700;
+      return colorScheme.primary;
     }
     if (normalizedTitle.contains('spiega') ||
         normalizedTitle.contains('spiegazione')) {
@@ -174,7 +178,7 @@ class TranslationPanel extends StatelessWidget {
       return Colors.green.shade700;
     }
     if (normalizedTitle.contains('vocabolario')) {
-      return Colors.purple.shade700;
+      return colorScheme.secondary;
     }
 
     return colorScheme.primary;
@@ -185,7 +189,7 @@ class TranslationPanel extends StatelessWidget {
 
     if (normalizedTitle.contains('traduci') ||
         normalizedTitle.contains('traduzione')) {
-      return Colors.blue.shade50;
+      return colorScheme.primaryContainer.withValues(alpha: 0.62);
     }
     if (normalizedTitle.contains('spiega') ||
         normalizedTitle.contains('spiegazione')) {
@@ -197,7 +201,7 @@ class TranslationPanel extends StatelessWidget {
       return Colors.green.shade50;
     }
     if (normalizedTitle.contains('vocabolario')) {
-      return Colors.purple.shade50;
+      return colorScheme.secondaryContainer.withValues(alpha: 0.66);
     }
 
     return colorScheme.primaryContainer.withValues(alpha: 0.55);
@@ -215,6 +219,7 @@ class TranslationPanel extends StatelessWidget {
         elevation: 1.5,
         margin: EdgeInsets.zero,
         color: colorScheme.surfaceContainerLowest,
+        shadowColor: colorScheme.primary.withValues(alpha: 0.12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -248,7 +253,11 @@ class TranslationPanel extends StatelessWidget {
       elevation: 1.5,
       margin: EdgeInsets.zero,
       color: colorScheme.surfaceContainerLowest,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      shadowColor: colorScheme.primary.withValues(alpha: 0.12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.12)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -353,32 +362,47 @@ class TranslationPanel extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Text(
-                  'AI: ',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                Icon(Icons.auto_awesome, size: 20, color: colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'AI',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
-                DropdownButton<AiProvider>(
-                  value: selectedProvider,
-                  items: const [
-                    DropdownMenuItem(
-                      value: AiProvider.openai,
-                      child: Text('OpenAI'),
-                    ),
-                    DropdownMenuItem(
-                      value: AiProvider.deepseek,
-                      child: Text('DeepSeek'),
-                    ),
-                  ],
-                  onChanged: isLoading
-                      ? null
-                      : (value) {
-                          if (value == null) return;
+                const SizedBox(width: 8),
+                DropdownButtonHideUnderline(
+                  child: DropdownButton<AiProvider>(
+                    value: selectedProvider,
+                    borderRadius: BorderRadius.circular(16),
+                    items: const [
+                      DropdownMenuItem(
+                        value: AiProvider.openai,
+                        child: Text('OpenAI'),
+                      ),
+                      DropdownMenuItem(
+                        value: AiProvider.deepseek,
+                        child: Text('DeepSeek'),
+                      ),
+                    ],
+                    onChanged: isLoading
+                        ? null
+                        : (value) {
+                            if (value == null) return;
 
-                          onProviderChanged(value);
-                        },
+                            onProviderChanged(value);
+                          },
+                  ),
                 ),
                 const Spacer(),
-                const Text('Auto'),
+                Text(
+                  'Auto',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
                 Switch(value: autoTranslate, onChanged: onAutoTranslateChanged),
               ],
             ),
@@ -386,14 +410,21 @@ class TranslationPanel extends StatelessWidget {
               hasSelection
                   ? 'Testo selezionato: ${selectedText.length} caratteri - $selectedLocationLabel'
                   : noSelectionMessage,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: hasSelection
+                    ? colorScheme.onSurface
+                    : colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             if (isLimited)
-              const Padding(
-                padding: EdgeInsets.only(top: 4),
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   'Verranno inviati solo i primi 1200 caratteri.',
-                  style: TextStyle(fontSize: 12),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             if (hasSelection) ...[
@@ -404,6 +435,10 @@ class TranslationPanel extends StatelessWidget {
                     : selectedText,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  height: 1.32,
+                ),
               ),
               const SizedBox(height: 10),
               _buildActionWrap(context),

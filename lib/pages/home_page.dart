@@ -168,6 +168,85 @@ class _HomePageState extends State<HomePage> {
     ).showSnackBar(const SnackBar(content: Text('File non trovato')));
   }
 
+  void _showAboutDialog() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final features = [
+      'Lettura PDF',
+      'Lettura EPUB',
+      'Traduzione',
+      'Spiegazione',
+      'Riassunto',
+      'Vocabolario',
+      'Storico e documenti recenti',
+    ];
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
+          icon: Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Icon(
+              Icons.auto_stories,
+              color: colorScheme.onPrimaryContainer,
+              size: 38,
+            ),
+          ),
+          title: Text(
+            'AI Reader',
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              dialogContext,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Leggi, traduci e approfondisci PDF ed EPUB',
+                textAlign: TextAlign.center,
+                style: Theme.of(dialogContext).textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 22),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: features
+                    .map(
+                      (feature) => Chip(
+                        avatar: const Icon(Icons.check_circle, size: 18),
+                        label: Text(feature),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    )
+                    .toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Chiudi'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   String _formatOpenedAt(DateTime openedAt) {
     if (openedAt.millisecondsSinceEpoch == 0) return '';
 
@@ -187,25 +266,36 @@ class _HomePageState extends State<HomePage> {
       elevation: 3,
       shadowColor: colorScheme.shadow.withValues(alpha: 0.16),
       margin: EdgeInsets.zero,
-      color: colorScheme.surface,
+      color: colorScheme.surfaceContainerLowest,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 68,
-              height: 68,
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Icon(
-                Icons.auto_stories,
-                color: colorScheme.onPrimaryContainer,
-                size: 36,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 68,
+                  height: 68,
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(
+                    Icons.auto_stories,
+                    color: colorScheme.onPrimaryContainer,
+                    size: 36,
+                  ),
+                ),
+                const Spacer(),
+                IconButton.filledTonal(
+                  tooltip: 'Info app',
+                  icon: const Icon(Icons.info_outline),
+                  onPressed: _showAboutDialog,
+                ),
+              ],
             ),
             const SizedBox(height: 22),
             Text(
@@ -317,7 +407,7 @@ class _HomePageState extends State<HomePage> {
     return Card(
       elevation: 1,
       margin: EdgeInsets.zero,
-      color: colorScheme.surface,
+      color: colorScheme.surfaceContainerLowest,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
@@ -327,13 +417,13 @@ class _HomePageState extends State<HomePage> {
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest,
+                color: colorScheme.secondaryContainer,
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Icon(
                 Icons.history,
                 size: 30,
-                color: colorScheme.onSurfaceVariant,
+                color: colorScheme.onSecondaryContainer,
               ),
             ),
             const SizedBox(height: 14),
@@ -373,7 +463,7 @@ class _HomePageState extends State<HomePage> {
       elevation: 1.5,
       shadowColor: colorScheme.shadow.withValues(alpha: 0.10),
       margin: const EdgeInsets.only(bottom: 12),
-      color: colorScheme.surface,
+      color: colorScheme.surfaceContainerLowest,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       clipBehavior: Clip.antiAlias,
       child: ListTile(
@@ -384,14 +474,14 @@ class _HomePageState extends State<HomePage> {
           height: 44,
           decoration: BoxDecoration(
             color: isPdf
-                ? colorScheme.errorContainer
+                ? colorScheme.primaryContainer
                 : colorScheme.secondaryContainer,
             borderRadius: BorderRadius.circular(14),
           ),
           child: Icon(
             isPdf ? Icons.picture_as_pdf : Icons.menu_book,
             color: isPdf
-                ? colorScheme.onErrorContainer
+                ? colorScheme.onPrimaryContainer
                 : colorScheme.onSecondaryContainer,
             size: 24,
           ),
@@ -502,7 +592,7 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       backgroundColor: Color.alphaBlend(
-        colorScheme.primary.withValues(alpha: 0.035),
+        colorScheme.primary.withValues(alpha: 0.045),
         colorScheme.surface,
       ),
       body: SafeArea(
