@@ -58,12 +58,8 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   static const double _minEpubFontSize = 14.0;
   static const double _maxEpubFontSize = 28.0;
   static const double _epubFontSizeStep = 1.0;
-  static const List<double> _epubHorizontalPaddingValues = [
-    12.0,
-    18.0,
-    24.0,
-    32.0,
-  ];
+  static const double _minEpubHorizontalPadding = 0.0;
+  static const double _maxEpubHorizontalPadding = 64.0;
   static const List<double> _epubLineHeightValues = [1.3, 1.5, 1.7, 1.9];
   static const List<String> _epubReadingThemeValues = [
     'light',
@@ -106,7 +102,8 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
           .clamp(_minEpubFontSize, _maxEpubFontSize)
           .toDouble();
       epubHorizontalPadding =
-          _epubHorizontalPaddingValues.contains(savedEpubHorizontalPadding)
+          savedEpubHorizontalPadding >= _minEpubHorizontalPadding &&
+              savedEpubHorizontalPadding <= _maxEpubHorizontalPadding
           ? savedEpubHorizontalPadding
           : 18.0;
       epubLineHeight = _epubLineHeightValues.contains(savedEpubLineHeight)
@@ -794,8 +791,8 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     super.dispose();
   }
 
-  void _changeEpubFontSize(double delta) {
-    final nextFontSize = (epubFontSize + delta)
+  void _setEpubFontSize(double value) {
+    final nextFontSize = value
         .clamp(_minEpubFontSize, _maxEpubFontSize)
         .toDouble();
 
@@ -808,14 +805,22 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     unawaited(_storageService.saveEpubFontSize(nextFontSize));
   }
 
+  void _changeEpubFontSize(double delta) {
+    _setEpubFontSize(epubFontSize + delta);
+  }
+
   void _changeEpubHorizontalPadding(double value) {
-    if (value == epubHorizontalPadding) return;
+    final nextPadding = value
+        .clamp(_minEpubHorizontalPadding, _maxEpubHorizontalPadding)
+        .toDouble();
+
+    if (nextPadding == epubHorizontalPadding) return;
 
     _updateReadingAppearance(() {
-      epubHorizontalPadding = value;
+      epubHorizontalPadding = nextPadding;
     });
 
-    unawaited(_storageService.saveEpubHorizontalPadding(value));
+    unawaited(_storageService.saveEpubHorizontalPadding(nextPadding));
   }
 
   void _changeEpubLineHeight(double value) {
@@ -920,62 +925,61 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
                     const SizedBox(height: 18),
                     Row(
                       children: [
-                        IconButton(
-                          tooltip: 'Riduci carattere',
-                          icon: const Icon(Icons.text_decrease),
-                          onPressed: () {
-                            _changeEpubFontSize(-_epubFontSizeStep);
-                            setModalState(() {});
-                          },
-                        ),
                         Expanded(
-                          child: Center(
-                            child: Text(
-                              epubFontSize.toStringAsFixed(0),
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
+                          child: Text(
+                            'Dimensione carattere',
+                            style: Theme.of(context).textTheme.titleMedium,
                           ),
                         ),
-                        IconButton(
-                          tooltip: 'Aumenta carattere',
-                          icon: const Icon(Icons.text_increase),
-                          onPressed: () {
-                            _changeEpubFontSize(_epubFontSizeStep);
-                            setModalState(() {});
-                          },
+                        Text(
+                          '${epubFontSize.round()}',
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
                       ],
+                    ),
+                    Slider(
+                      value: epubFontSize
+                          .clamp(_minEpubFontSize, _maxEpubFontSize)
+                          .toDouble(),
+                      min: _minEpubFontSize,
+                      max: _maxEpubFontSize,
+                      divisions: (_maxEpubFontSize - _minEpubFontSize).round(),
+                      label: epubFontSize.round().toString(),
+                      onChanged: (value) {
+                        _setEpubFontSize(value);
+                        setModalState(() {});
+                      },
                     ),
                     const SizedBox(height: 16),
-                    Text(
-                      'Margini',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
+                    Row(
                       children: [
-                        optionChip(
-                          label: 'Stretti',
-                          selected: epubHorizontalPadding == 12.0,
-                          onSelected: () => _changeEpubHorizontalPadding(12.0),
+                        Expanded(
+                          child: Text(
+                            'Margini laterali',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
                         ),
-                        optionChip(
-                          label: 'Normali',
-                          selected: epubHorizontalPadding == 18.0,
-                          onSelected: () => _changeEpubHorizontalPadding(18.0),
-                        ),
-                        optionChip(
-                          label: 'Larghi',
-                          selected: epubHorizontalPadding == 24.0,
-                          onSelected: () => _changeEpubHorizontalPadding(24.0),
-                        ),
-                        optionChip(
-                          label: 'Molto larghi',
-                          selected: epubHorizontalPadding == 32.0,
-                          onSelected: () => _changeEpubHorizontalPadding(32.0),
+                        Text(
+                          '${epubHorizontalPadding.round()} px',
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
                       ],
+                    ),
+                    Slider(
+                      value: epubHorizontalPadding
+                          .clamp(
+                            _minEpubHorizontalPadding,
+                            _maxEpubHorizontalPadding,
+                          )
+                          .toDouble(),
+                      min: _minEpubHorizontalPadding,
+                      max: _maxEpubHorizontalPadding,
+                      divisions: 16,
+                      label: '${epubHorizontalPadding.round()} px',
+                      onChanged: (value) {
+                        _changeEpubHorizontalPadding(value);
+                        setModalState(() {});
+                      },
                     ),
                     const SizedBox(height: 16),
                     Text(
@@ -1059,6 +1063,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
         PopupMenuButton<String>(
           tooltip: 'Altro',
           icon: const Icon(Icons.more_vert),
+          color: Theme.of(context).colorScheme.surface,
           onSelected: (value) {
             switch (value) {
               case 'font_minus':
@@ -1079,23 +1084,39 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
             }
           },
           itemBuilder: (context) => [
-            const PopupMenuItem(
+            PopupMenuItem(
               value: 'font_minus',
               child: Row(
                 children: [
-                  Icon(Icons.text_decrease),
-                  SizedBox(width: 12),
-                  Text('Riduci carattere'),
+                  Icon(
+                    Icons.text_decrease,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Riduci carattere',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
                 ],
               ),
             ),
-            const PopupMenuItem(
+            PopupMenuItem(
               value: 'font_plus',
               child: Row(
                 children: [
-                  Icon(Icons.text_increase),
-                  SizedBox(width: 12),
-                  Text('Aumenta carattere'),
+                  Icon(
+                    Icons.text_increase,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Aumenta carattere',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1121,7 +1142,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
         controller: _scrollController,
         padding: EdgeInsets.symmetric(
           horizontal: epubHorizontalPadding,
-          vertical: 18,
+          vertical: 8,
         ),
         child: SelectionArea(
           key: ValueKey(_selectionClearVersion),
