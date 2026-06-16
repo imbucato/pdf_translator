@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart' as fp;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -86,6 +87,8 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     _loadHistory();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!kDebugMode) return;
+
       final totalTextLength = widget.book.chapters.fold<int>(
         0,
         (total, chapter) => total + chapter.text.length,
@@ -1168,7 +1171,10 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   Widget _buildEpubContent() {
     if (!_didLogEpubContentBuild) {
       _didLogEpubContentBuild = true;
-      debugPrint('[EPUB PERF] EPUB content first built');
+
+      if (kDebugMode) {
+        debugPrint('[EPUB PERF] EPUB content first built');
+      }
     }
 
     final colorScheme = Theme.of(context).colorScheme;
