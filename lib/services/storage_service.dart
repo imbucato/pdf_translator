@@ -8,6 +8,12 @@ import '../models/recent_document.dart';
 import 'ai_service.dart';
 
 class StorageService {
+  int _compareRecentDocuments(RecentDocument a, RecentDocument b) {
+    if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+
+    return b.openedAt.compareTo(a.openedAt);
+  }
+
   Future<AiProvider> loadProvider() async {
     final prefs = await SharedPreferences.getInstance();
     final savedProvider = prefs.getString('ai_provider') ?? 'openai';
@@ -85,15 +91,14 @@ class StorageService {
         .where((document) => document.path.isNotEmpty)
         .toList();
 
-    documents.sort((a, b) => b.openedAt.compareTo(a.openedAt));
+    documents.sort(_compareRecentDocuments);
 
     return documents.take(10).toList();
   }
 
   Future<void> saveRecentDocuments(List<RecentDocument> documents) async {
     final prefs = await SharedPreferences.getInstance();
-    final sortedDocuments = [...documents]
-      ..sort((a, b) => b.openedAt.compareTo(a.openedAt));
+    final sortedDocuments = [...documents]..sort(_compareRecentDocuments);
     final raw = sortedDocuments
         .take(10)
         .map((document) => jsonEncode(document.toJson()))
@@ -104,10 +109,31 @@ class StorageService {
 
   Future<void> addRecentDocument(RecentDocument document) async {
     final documents = await loadRecentDocuments();
+    final existingDocuments = documents
+        .where((item) => item.path == document.path)
+        .toList();
+    final updatedDocument = document.copyWith(
+      isPinned:
+          document.isPinned ||
+          (existingDocuments.isNotEmpty && existingDocuments.first.isPinned),
+    );
     final updatedDocuments = [
-      document,
+      updatedDocument,
       ...documents.where((item) => item.path != document.path),
     ];
+
+    await saveRecentDocuments(updatedDocuments);
+  }
+
+  Future<void> updateRecentDocumentPinned(String path, bool isPinned) async {
+    final documents = await loadRecentDocuments();
+    final updatedDocuments = documents
+        .map(
+          (document) => document.path == path
+              ? document.copyWith(isPinned: isPinned)
+              : document,
+        )
+        .toList();
 
     await saveRecentDocuments(updatedDocuments);
   }

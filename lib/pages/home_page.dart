@@ -131,6 +131,14 @@ class _HomePageState extends State<HomePage> {
     await _loadRecentDocuments();
   }
 
+  Future<void> _togglePinnedRecentDocument(RecentDocument document) async {
+    await _storageService.updateRecentDocumentPinned(
+      document.path,
+      !document.isPinned,
+    );
+    await _loadRecentDocuments();
+  }
+
   Future<void> _clearRecentDocuments() async {
     await _storageService.clearRecentDocuments();
     await _loadRecentDocuments();
@@ -573,13 +581,23 @@ class _HomePageState extends State<HomePage> {
             size: 24,
           ),
         ),
-        title: Text(
-          document.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(
-            context,
-          ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w800),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                document.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ),
+            if (document.isPinned) ...[
+              const SizedBox(width: 6),
+              Icon(Icons.push_pin, size: 16, color: colorScheme.primary),
+            ],
+          ],
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 6),
@@ -616,12 +634,41 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
         ),
-        trailing: IconButton(
-          tooltip: 'Rimuovi dai recenti',
-          icon: const Icon(Icons.close),
-          onPressed: _isOpeningDocument
-              ? null
-              : () => _removeRecentDocument(document),
+        trailing: PopupMenuButton<String>(
+          tooltip: 'Azioni documento',
+          enabled: !_isOpeningDocument,
+          onSelected: (value) {
+            switch (value) {
+              case 'pin':
+                _togglePinnedRecentDocument(document);
+                break;
+              case 'remove':
+                _removeRecentDocument(document);
+                break;
+            }
+          },
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              value: 'pin',
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  document.isPinned ? Icons.push_pin_outlined : Icons.push_pin,
+                ),
+                title: Text(
+                  document.isPinned ? 'Rimuovi fissaggio' : 'Fissa in alto',
+                ),
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'remove',
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.close),
+                title: Text('Rimuovi dai recenti'),
+              ),
+            ),
+          ],
         ),
         onTap: _isOpeningDocument ? null : () => _openRecentDocument(document),
       ),
