@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart' as fp;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectedContent;
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../models/history_item.dart';
 import '../models/recent_document.dart';
@@ -27,12 +28,12 @@ class EpubReaderPage extends StatefulWidget {
 }
 
 class _EpubReaderPageState extends State<EpubReaderPage> {
-  final ScrollController _scrollController = ScrollController();
   final AiService _aiService = AiService();
   final StorageService _storageService = StorageService();
-  final Map<int, double> _chapterOffsets = {};
+  final ItemScrollController _itemScrollController = ItemScrollController();
+  final ItemPositionsListener _itemPositionsListener =
+      ItemPositionsListener.create();
 
-  late final List<GlobalKey> _chapterKeys;
   late final String _epubStorageKey;
   late final Stopwatch _epubPerfStopwatch;
 
@@ -47,7 +48,6 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   String resultTitle = 'Risultato';
   String resultText = '';
   String lastAutoTranslateKey = '';
-  double? selectedTextScrollOffset;
 
   bool isLoading = false;
   bool autoTranslate = false;
@@ -75,13 +75,11 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     super.initState();
 
     _epubPerfStopwatch = Stopwatch()..start();
-    _chapterKeys = List.generate(
-      widget.book.chapters.length,
-      (_) => GlobalKey(),
-    );
     _epubStorageKey = _storageService.makeEpubStorageKey(widget.book.title);
 
-    _scrollController.addListener(_saveReadingPositionSoon);
+    _itemPositionsListener.itemPositions.addListener(
+      _handleVisibleChapterPositionsChanged,
+    );
     _restoreReadingPosition();
     _loadSettings();
     _loadCache();
@@ -157,9 +155,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   Future<void> openResultPage() async {
     if (resultText.trim().isEmpty) return;
 
-    final savedOffset = _scrollController.hasClients
-        ? _scrollController.offset
-        : null;
+    final savedLocation = _currentVisibleChapterLocation();
 
     await Navigator.push(
       context,
@@ -168,27 +164,14 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       ),
     );
 
-    if (!mounted || savedOffset == null) return;
-
-    Future<void> restoreOffset() async {
-      if (!mounted || !_scrollController.hasClients) return;
-
-      final position = _scrollController.position;
-
-      final restoredOffset = savedOffset.clamp(
-        position.minScrollExtent,
-        position.maxScrollExtent,
-      );
-
-      _scrollController.jumpTo(restoredOffset);
-    }
+    if (!mounted) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      restoreOffset();
+      _restoreChapterLocation(savedLocation);
     });
 
     await Future.delayed(const Duration(milliseconds: 80));
-    await restoreOffset();
+    _restoreChapterLocation(savedLocation);
   }
 
   Future<void> showCreditInfo() async {
@@ -403,7 +386,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
                 selected: index == selectedChapterIndex,
                 onTap: () {
                   Navigator.pop(context);
-                  _jumpToChapterApprox(index);
+                  _jumpToChapter(index);
                 },
               );
             },
@@ -428,9 +411,6 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     required String result,
   }) async {
     final chapterIndex = _currentVisibleChapterIndex();
-    final currentOffset =
-        selectedTextScrollOffset ??
-        (_scrollController.hasClients ? _scrollController.offset : null);
 
     final item = HistoryItem(
       pdfKey: _epubStorageKey,
@@ -440,7 +420,6 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       result: result,
       page: chapterIndex + 1,
       date: DateTime.now(),
-      scrollOffset: currentOffset,
     );
 
     setState(() {
@@ -633,41 +612,11 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       resultText = item.result;
     });
 
-    final targetOffset = item.scrollOffset;
-
-    if (targetOffset != null) {
-      void jumpToSavedOffset() {
-        if (!mounted || !_scrollController.hasClients) return;
-
-        final position = _scrollController.position;
-        final safeOffset = targetOffset.clamp(
-          position.minScrollExtent,
-          position.maxScrollExtent,
-        );
-
-        _scrollController.jumpTo(safeOffset);
-      }
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        jumpToSavedOffset();
-      });
-
-      Future.delayed(const Duration(milliseconds: 120), () {
-        jumpToSavedOffset();
-      });
-
-      Future.delayed(const Duration(milliseconds: 300), () {
-        jumpToSavedOffset();
-      });
-
-      return;
-    }
-
     if (!hasValidChapter) return;
 
     Future.delayed(const Duration(milliseconds: 200), () {
       if (!mounted) return;
-      _jumpToChapterApprox(chapterIndex);
+      _jumpToChapter(chapterIndex);
     });
   }
 
@@ -676,7 +625,6 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
     setState(() {
       selectedText = '';
-      selectedTextScrollOffset = null;
       resultText = '';
       resultTitle = 'Risultato';
       lastAutoTranslateKey = '';
@@ -700,208 +648,161 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   }
 
   Future<void> _restoreReadingPosition() async {
-    final offset = await _storageService.loadSavedEpubScrollOffset(
+    if (widget.book.chapters.isEmpty) return;
+
+    final savedChapterIndex = await _storageService.loadSavedEpubChapterIndex(
+      _epubStorageKey,
+    );
+    final savedProgress = await _storageService.loadEpubProgress(
       _epubStorageKey,
     );
 
     if (!mounted) return;
 
+    final fallbackChapterIndex =
+        savedProgress == null || widget.book.chapters.length <= 1
+        ? 0
+        : ((savedProgress / 100) * (widget.book.chapters.length - 1)).round();
+
+    final chapterIndex = (savedChapterIndex ?? fallbackChapterIndex).clamp(
+      0,
+      widget.book.chapters.length - 1,
+    );
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) return;
-
-      final position = _scrollController.position;
-      final restoredOffset = offset.clamp(
-        position.minScrollExtent,
-        position.maxScrollExtent,
-      );
-
-      _scrollController.jumpTo(restoredOffset);
+      _jumpToChapter(chapterIndex, duration: Duration.zero);
     });
   }
 
   void _saveReadingPositionSoon() {
     _savePositionDebounce?.cancel();
     _savePositionDebounce = Timer(const Duration(milliseconds: 400), () {
-      if (!_scrollController.hasClients) return;
-
       unawaited(_saveCurrentEpubPosition());
     });
   }
 
   Future<void> _saveCurrentEpubPosition() async {
-    if (!_scrollController.hasClients) return;
+    if (widget.book.chapters.isEmpty) return;
 
-    final position = _scrollController.position;
-    final offset = position.pixels.clamp(
-      position.minScrollExtent,
-      position.maxScrollExtent,
-    );
+    final chapterIndex = _currentVisibleChapterIndex();
 
-    await _storageService.saveEpubScrollOffset(
+    await _storageService.saveEpubChapterIndex(
       epubStorageKey: _epubStorageKey,
-      scrollOffset: offset,
+      chapterIndex: chapterIndex,
     );
 
-    final maxScrollExtent = position.maxScrollExtent;
-    if (maxScrollExtent <= 0) return;
+    final lastChapterIndex = widget.book.chapters.length - 1;
+    final percent = lastChapterIndex <= 0
+        ? 0
+        : ((chapterIndex / lastChapterIndex) * 100).round().clamp(0, 100);
 
-    final percent = ((offset / maxScrollExtent) * 100).round().clamp(0, 100);
     await _storageService.saveEpubProgress(_epubStorageKey, percent);
   }
 
-  void _restoreScrollOffset(
-    double offset, {
+  void _jumpToChapter(
+    int chapterIndex, {
     Duration duration = const Duration(milliseconds: 350),
+    double alignment = 0,
   }) {
-    void restoreOffset() {
-      if (!mounted || !_scrollController.hasClients) return;
-
-      final position = _scrollController.position;
-      final safeOffset = offset
-          .clamp(position.minScrollExtent, position.maxScrollExtent)
-          .toDouble();
-
-      if (duration == Duration.zero) {
-        _scrollController.jumpTo(safeOffset);
-        return;
-      }
-
-      _scrollController.animateTo(
-        safeOffset,
-        duration: duration,
-        curve: Curves.easeOutCubic,
-      );
-    }
-
-    if (_scrollController.hasClients) {
-      restoreOffset();
+    if (widget.book.chapters.isEmpty ||
+        chapterIndex < 0 ||
+        chapterIndex >= widget.book.chapters.length) {
       return;
     }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      restoreOffset();
-    });
-  }
-
-  double _estimateChapterOffset(int chapterIndex) {
-    if (!_scrollController.hasClients) return 0;
-
-    final safeChapterIndex = chapterIndex.clamp(
-      0,
-      widget.book.chapters.length - 1,
-    );
-
-    final totalChars = widget.book.chapters.fold<int>(
-      0,
-      (total, chapter) => total + chapter.title.length + chapter.text.length,
-    );
-
-    if (totalChars <= 0) return _scrollController.position.minScrollExtent;
-
-    final charsBefore = widget.book.chapters
-        .take(safeChapterIndex)
-        .fold<int>(
-          0,
-          (total, chapter) =>
-              total + chapter.title.length + chapter.text.length,
-        );
-
-    final ratio = (charsBefore / totalChars).clamp(0.0, 1.0);
-    final position = _scrollController.position;
-    final estimatedOffset = ratio * position.maxScrollExtent;
-
-    return estimatedOffset
-        .clamp(position.minScrollExtent, position.maxScrollExtent)
-        .toDouble();
-  }
-
-  void _jumpToChapterApprox(int chapterIndex) {
-    if (chapterIndex < 0 || chapterIndex >= widget.book.chapters.length) {
-      return;
-    }
-
-    if (mounted) {
+    if (mounted && selectedChapterIndex != chapterIndex) {
       setState(() {
         selectedChapterIndex = chapterIndex;
       });
     }
 
-    final measuredOffset = _chapterOffsets[chapterIndex];
-    final targetOffset = measuredOffset ?? _estimateChapterOffset(chapterIndex);
+    void jump() {
+      if (!mounted || !_itemScrollController.isAttached) return;
 
-    _restoreScrollOffset(targetOffset);
-  }
+      if (duration == Duration.zero) {
+        _itemScrollController.jumpTo(index: chapterIndex, alignment: alignment);
+        return;
+      }
 
-  void _measureChapterOffset(int index) {
+      unawaited(
+        _itemScrollController.scrollTo(
+          index: chapterIndex,
+          alignment: alignment,
+          duration: duration,
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    }
+
+    if (_itemScrollController.isAttached) {
+      jump();
+      return;
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) return;
-
-      final chapterContext = _chapterKeys[index].currentContext;
-      if (chapterContext == null) return;
-
-      final chapterRenderObject = chapterContext.findRenderObject();
-      if (chapterRenderObject is! RenderBox || !chapterRenderObject.attached) {
-        return;
-      }
-
-      final scrollableState = Scrollable.maybeOf(chapterContext);
-      final scrollableRenderObject = scrollableState?.context
-          .findRenderObject();
-      if (scrollableRenderObject is! RenderBox ||
-          !scrollableRenderObject.attached) {
-        return;
-      }
-
-      final chapterTop = chapterRenderObject.localToGlobal(Offset.zero).dy;
-      final scrollableTop = scrollableRenderObject
-          .localToGlobal(Offset.zero)
-          .dy;
-      final position = _scrollController.position;
-      final measuredOffset = (position.pixels + chapterTop - scrollableTop - 8)
-          .clamp(position.minScrollExtent, position.maxScrollExtent)
-          .toDouble();
-
-      _chapterOffsets[index] = measuredOffset;
+      jump();
     });
   }
 
   int _currentVisibleChapterIndex() {
-    if (!_scrollController.hasClients || _chapterKeys.isEmpty) {
-      return selectedChapterIndex;
+    return _currentVisibleChapterLocation().index;
+  }
+
+  ({double alignment, int index}) _currentVisibleChapterLocation() {
+    if (widget.book.chapters.isEmpty) {
+      return (index: 0, alignment: 0);
     }
 
-    final markerY = MediaQuery.of(context).size.height * 0.35;
-    var currentIndex = selectedChapterIndex;
+    final visiblePositions = _itemPositionsListener.itemPositions.value
+        .where(
+          (position) =>
+              position.itemTrailingEdge > 0 && position.itemLeadingEdge < 1,
+        )
+        .toList();
 
-    for (var i = 0; i < _chapterKeys.length; i++) {
-      final chapterContext = _chapterKeys[i].currentContext;
-      if (chapterContext == null) continue;
-
-      final renderObject = chapterContext.findRenderObject();
-      if (renderObject is! RenderBox) continue;
-
-      final chapterTop = renderObject.localToGlobal(Offset.zero).dy;
-
-      if (chapterTop <= markerY) {
-        currentIndex = i;
-      } else {
-        break;
-      }
+    if (visiblePositions.isEmpty) {
+      return (index: selectedChapterIndex, alignment: 0);
     }
 
-    return currentIndex.clamp(0, _chapterKeys.length - 1);
+    visiblePositions.sort(
+      (a, b) => a.itemLeadingEdge.compareTo(b.itemLeadingEdge),
+    );
+    final currentPosition = visiblePositions.first;
+
+    return (
+      index: currentPosition.index.clamp(0, widget.book.chapters.length - 1),
+      alignment: currentPosition.itemLeadingEdge,
+    );
+  }
+
+  void _restoreChapterLocation(({double alignment, int index}) location) {
+    _jumpToChapter(
+      location.index,
+      duration: Duration.zero,
+      alignment: location.alignment,
+    );
+  }
+
+  void _handleVisibleChapterPositionsChanged() {
+    final chapterIndex = _currentVisibleChapterIndex();
+
+    if (chapterIndex != selectedChapterIndex && mounted) {
+      setState(() {
+        selectedChapterIndex = chapterIndex;
+      });
+    }
+
+    _saveReadingPositionSoon();
   }
 
   @override
   void dispose() {
     _savePositionDebounce?.cancel();
     _autoTranslateTimer?.cancel();
-
-    if (_scrollController.hasClients) {
-      unawaited(_saveCurrentEpubPosition());
-    }
-
-    _scrollController.dispose();
+    _itemPositionsListener.itemPositions.removeListener(
+      _handleVisibleChapterPositionsChanged,
+    );
+    unawaited(_saveCurrentEpubPosition());
     super.dispose();
   }
 
@@ -958,25 +859,12 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   }
 
   void _updateReadingAppearance(VoidCallback update) {
-    final savedOffset = _scrollController.hasClients
-        ? _scrollController.offset
-        : null;
+    final savedLocation = _currentVisibleChapterLocation();
 
-    _chapterOffsets.clear();
     setState(update);
 
-    if (savedOffset == null) return;
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) return;
-
-      final position = _scrollController.position;
-      final restoredOffset = savedOffset.clamp(
-        position.minScrollExtent,
-        position.maxScrollExtent,
-      );
-
-      _scrollController.jumpTo(restoredOffset);
+      _restoreChapterLocation(savedLocation);
     });
   }
 
@@ -1007,15 +895,8 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   void _handleEpubSelectionChanged(SelectedContent? selection) {
     final newText = selection?.plainText ?? '';
 
-    final currentOffset = _scrollController.hasClients
-        ? _scrollController.offset
-        : null;
-
     setState(() {
       selectedText = newText;
-      selectedTextScrollOffset = newText.trim().isNotEmpty
-          ? currentOffset
-          : null;
     });
 
     _scheduleAutoTranslate(newText);
@@ -1275,8 +1156,9 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
     return ColoredBox(
       color: _readingBackgroundColor(colorScheme),
-      child: ListView.builder(
-        controller: _scrollController,
+      child: ScrollablePositionedList.builder(
+        itemScrollController: _itemScrollController,
+        itemPositionsListener: _itemPositionsListener,
         padding: EdgeInsets.symmetric(
           horizontal: epubHorizontalPadding,
           vertical: 8,
@@ -1284,12 +1166,10 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
         itemCount: widget.book.chapters.length,
         itemBuilder: (context, index) {
           final chapter = widget.book.chapters[index];
-          _measureChapterOffset(index);
 
           return SelectionArea(
             onSelectionChanged: _handleEpubSelectionChanged,
             child: Padding(
-              key: _chapterKeys[index],
               padding: EdgeInsets.only(
                 bottom: index == widget.book.chapters.length - 1 ? 24 : 36,
               ),

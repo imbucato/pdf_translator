@@ -170,6 +170,25 @@ class StorageService {
     return '${epubStorageKey}_progress';
   }
 
+  String _epubChapterIndexKey(String epubStorageKey) {
+    return '${epubStorageKey}_chapter_index';
+  }
+
+  Future<int?> loadSavedEpubChapterIndex(String epubStorageKey) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = _epubChapterIndexKey(epubStorageKey);
+
+    return prefs.containsKey(key) ? prefs.getInt(key) : null;
+  }
+
+  Future<void> saveEpubChapterIndex({
+    required String epubStorageKey,
+    required int chapterIndex,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_epubChapterIndexKey(epubStorageKey), chapterIndex);
+  }
+
   Future<int?> loadEpubProgress(String epubStorageKey) async {
     final prefs = await SharedPreferences.getInstance();
     final key = _epubProgressKey(epubStorageKey);
