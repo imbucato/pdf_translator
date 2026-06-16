@@ -43,9 +43,11 @@ class _HistoryPageState extends State<HistoryPage> {
       if (!belongsToCurrentPdf) return false;
       if (query.isEmpty) return true;
 
+      final itemLocationTitle = item.locationTitle?.trim() ?? '';
       final searchableText = [
         item.action,
         item.provider,
+        itemLocationTitle,
         item.original,
         item.result,
         item.page.toString(),
@@ -119,6 +121,11 @@ class _HistoryPageState extends State<HistoryPage> {
                       itemCount: currentHistory.length,
                       itemBuilder: (context, index) {
                         final item = currentHistory[index];
+                        final itemLocationTitle =
+                            item.locationTitle?.trim() ?? '';
+                        final itemLocationLabel = itemLocationTitle.isNotEmpty
+                            ? itemLocationTitle
+                            : '${widget.locationLabel} ${item.page}';
 
                         return Card(
                           margin: const EdgeInsets.symmetric(
@@ -127,7 +134,7 @@ class _HistoryPageState extends State<HistoryPage> {
                           ),
                           child: ListTile(
                             title: Text(
-                              '${item.action} · ${item.provider} - ${widget.locationLabel} ${item.page}',
+                              '${item.action} · ${item.provider} - $itemLocationLabel',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),

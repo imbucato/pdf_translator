@@ -396,6 +396,20 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     );
   }
 
+  String _chapterLabelForIndex(int chapterIndex) {
+    if (chapterIndex >= 0 && chapterIndex < widget.book.chapters.length) {
+      final chapterTitle = widget.book.chapters[chapterIndex].title.trim();
+
+      if (chapterTitle.isNotEmpty) return chapterTitle;
+    }
+
+    return 'Capitolo ${chapterIndex + 1}';
+  }
+
+  String _currentChapterLabel() {
+    return _chapterLabelForIndex(selectedChapterIndex);
+  }
+
   String _limitedSelectedText() {
     final text = TextCleanerService.normalizePdfText(selectedText);
 
@@ -411,6 +425,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     required String result,
   }) async {
     final chapterIndex = _currentVisibleChapterIndex();
+    final chapterLabel = _chapterLabelForIndex(chapterIndex);
 
     final item = HistoryItem(
       pdfKey: _epubStorageKey,
@@ -420,6 +435,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       result: result,
       page: chapterIndex + 1,
       date: DateTime.now(),
+      locationTitle: chapterLabel,
     );
 
     setState(() {
@@ -608,7 +624,11 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
         selectedChapterIndex = chapterIndex;
       }
 
-      resultTitle = '${item.action} - ${item.provider} - capitolo ${item.page}';
+      final chapterLabel = item.locationTitle?.trim().isNotEmpty == true
+          ? item.locationTitle!.trim()
+          : _chapterLabelForIndex(chapterIndex);
+
+      resultTitle = '${item.action} - ${item.provider} - $chapterLabel';
       resultText = item.result;
     });
 
@@ -1209,7 +1229,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       currentPage: selectedChapterIndex + 1,
       autoTranslate: autoTranslate,
       selectedProvider: selectedProvider,
-      locationLabel: 'capitolo ${selectedChapterIndex + 1}',
+      locationLabel: _currentChapterLabel(),
       emptySelectionMessage: 'Seleziona una frase nell\'EPUB',
       onProviderChanged: (value) {
         setState(() {

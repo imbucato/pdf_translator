@@ -7,6 +7,7 @@ class HistoryItem {
   final int page;
   final DateTime date;
   final double? scrollOffset;
+  final String? locationTitle;
 
   HistoryItem({
     required this.pdfKey,
@@ -17,6 +18,7 @@ class HistoryItem {
     required this.page,
     required this.date,
     this.scrollOffset,
+    this.locationTitle,
   });
 
   Map<String, dynamic> toJson() => {
@@ -28,6 +30,7 @@ class HistoryItem {
     'page': page,
     'date': date.toIso8601String(),
     'scrollOffset': scrollOffset,
+    'locationTitle': locationTitle,
   };
 
   factory HistoryItem.fromJson(Map<String, dynamic> json) {
@@ -44,6 +47,7 @@ class HistoryItem {
       scrollOffset: rawScrollOffset is num
           ? rawScrollOffset.toDouble()
           : double.tryParse(rawScrollOffset?.toString() ?? ''),
+      locationTitle: json['locationTitle']?.toString(),
     );
   }
 }
