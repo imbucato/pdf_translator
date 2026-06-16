@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart' as fp;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SelectedContent;
 
 import '../models/history_item.dart';
 import '../models/recent_document.dart';
@@ -29,13 +30,14 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   final ScrollController _scrollController = ScrollController();
   final AiService _aiService = AiService();
   final StorageService _storageService = StorageService();
+  final Map<int, double> _chapterOffsets = {};
 
   late final List<GlobalKey> _chapterKeys;
   late final String _epubStorageKey;
+  late final Stopwatch _epubPerfStopwatch;
 
   Timer? _savePositionDebounce;
   Timer? _autoTranslateTimer;
-  int _selectionClearVersion = 0;
   int selectedChapterIndex = 0;
   double epubFontSize = 18.0;
   double epubHorizontalPadding = 18.0;
@@ -49,6 +51,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
   bool isLoading = false;
   bool autoTranslate = false;
+  bool _didLogEpubContentBuild = false;
 
   AiProvider selectedProvider = AiProvider.openai;
   Map<String, String> cache = {};
@@ -71,6 +74,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   void initState() {
     super.initState();
 
+    _epubPerfStopwatch = Stopwatch()..start();
     _chapterKeys = List.generate(
       widget.book.chapters.length,
       (_) => GlobalKey(),
@@ -82,6 +86,21 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     _loadSettings();
     _loadCache();
     _loadHistory();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final totalTextLength = widget.book.chapters.fold<int>(
+        0,
+        (total, chapter) => total + chapter.text.length,
+      );
+
+      debugPrint(
+        '[EPUB PERF] chapters: ${widget.book.chapters.length}, '
+        'chars: $totalTextLength',
+      );
+      debugPrint(
+        '[EPUB PERF] first frame: ${_epubPerfStopwatch.elapsedMilliseconds} ms',
+      );
+    });
   }
 
   Future<void> _loadSettings() async {
@@ -384,7 +403,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
                 selected: index == selectedChapterIndex,
                 onTap: () {
                   Navigator.pop(context);
-                  _scrollToChapter(index);
+                  _jumpToChapterApprox(index);
                 },
               );
             },
@@ -648,7 +667,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
     Future.delayed(const Duration(milliseconds: 200), () {
       if (!mounted) return;
-      _scrollToChapter(chapterIndex);
+      _jumpToChapterApprox(chapterIndex);
     });
   }
 
@@ -661,7 +680,6 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       resultText = '';
       resultTitle = 'Risultato';
       lastAutoTranslateKey = '';
-      _selectionClearVersion++;
     });
   }
 
@@ -731,24 +749,120 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     await _storageService.saveEpubProgress(_epubStorageKey, percent);
   }
 
-  void _scrollToChapter(int index) {
-    if (index < 0 || index >= _chapterKeys.length) return;
+  void _restoreScrollOffset(
+    double offset, {
+    Duration duration = const Duration(milliseconds: 350),
+  }) {
+    void restoreOffset() {
+      if (!mounted || !_scrollController.hasClients) return;
+
+      final position = _scrollController.position;
+      final safeOffset = offset
+          .clamp(position.minScrollExtent, position.maxScrollExtent)
+          .toDouble();
+
+      if (duration == Duration.zero) {
+        _scrollController.jumpTo(safeOffset);
+        return;
+      }
+
+      _scrollController.animateTo(
+        safeOffset,
+        duration: duration,
+        curve: Curves.easeOutCubic,
+      );
+    }
+
+    if (_scrollController.hasClients) {
+      restoreOffset();
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      restoreOffset();
+    });
+  }
+
+  double _estimateChapterOffset(int chapterIndex) {
+    if (!_scrollController.hasClients) return 0;
+
+    final safeChapterIndex = chapterIndex.clamp(
+      0,
+      widget.book.chapters.length - 1,
+    );
+
+    final totalChars = widget.book.chapters.fold<int>(
+      0,
+      (total, chapter) => total + chapter.title.length + chapter.text.length,
+    );
+
+    if (totalChars <= 0) return _scrollController.position.minScrollExtent;
+
+    final charsBefore = widget.book.chapters
+        .take(safeChapterIndex)
+        .fold<int>(
+          0,
+          (total, chapter) =>
+              total + chapter.title.length + chapter.text.length,
+        );
+
+    final ratio = (charsBefore / totalChars).clamp(0.0, 1.0);
+    final position = _scrollController.position;
+    final estimatedOffset = ratio * position.maxScrollExtent;
+
+    return estimatedOffset
+        .clamp(position.minScrollExtent, position.maxScrollExtent)
+        .toDouble();
+  }
+
+  void _jumpToChapterApprox(int chapterIndex) {
+    if (chapterIndex < 0 || chapterIndex >= widget.book.chapters.length) {
+      return;
+    }
 
     if (mounted) {
       setState(() {
-        selectedChapterIndex = index;
+        selectedChapterIndex = chapterIndex;
       });
     }
 
-    final chapterContext = _chapterKeys[index].currentContext;
-    if (chapterContext == null) return;
+    final measuredOffset = _chapterOffsets[chapterIndex];
+    final targetOffset = measuredOffset ?? _estimateChapterOffset(chapterIndex);
 
-    Scrollable.ensureVisible(
-      chapterContext,
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeOutCubic,
-      alignment: 0,
-    );
+    _restoreScrollOffset(targetOffset);
+  }
+
+  void _measureChapterOffset(int index) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+
+      final chapterContext = _chapterKeys[index].currentContext;
+      if (chapterContext == null) return;
+
+      final chapterRenderObject = chapterContext.findRenderObject();
+      if (chapterRenderObject is! RenderBox || !chapterRenderObject.attached) {
+        return;
+      }
+
+      final scrollableState = Scrollable.maybeOf(chapterContext);
+      final scrollableRenderObject = scrollableState?.context
+          .findRenderObject();
+      if (scrollableRenderObject is! RenderBox ||
+          !scrollableRenderObject.attached) {
+        return;
+      }
+
+      final chapterTop = chapterRenderObject.localToGlobal(Offset.zero).dy;
+      final scrollableTop = scrollableRenderObject
+          .localToGlobal(Offset.zero)
+          .dy;
+      final position = _scrollController.position;
+      final measuredOffset = (position.pixels + chapterTop - scrollableTop - 8)
+          .clamp(position.minScrollExtent, position.maxScrollExtent)
+          .toDouble();
+
+      _chapterOffsets[index] = measuredOffset;
+    });
   }
 
   int _currentVisibleChapterIndex() {
@@ -848,6 +962,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
         ? _scrollController.offset
         : null;
 
+    _chapterOffsets.clear();
     setState(update);
 
     if (savedOffset == null) return;
@@ -887,6 +1002,23 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       default:
         return colorScheme.onSurface;
     }
+  }
+
+  void _handleEpubSelectionChanged(SelectedContent? selection) {
+    final newText = selection?.plainText ?? '';
+
+    final currentOffset = _scrollController.hasClients
+        ? _scrollController.offset
+        : null;
+
+    setState(() {
+      selectedText = newText;
+      selectedTextScrollOffset = newText.trim().isNotEmpty
+          ? currentOffset
+          : null;
+    });
+
+    _scheduleAutoTranslate(newText);
   }
 
   void _showReadingSettingsSheet() {
@@ -1133,69 +1265,57 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   }
 
   Widget _buildEpubContent() {
+    if (!_didLogEpubContentBuild) {
+      _didLogEpubContentBuild = true;
+      debugPrint('[EPUB PERF] EPUB content first built');
+    }
+
     final colorScheme = Theme.of(context).colorScheme;
     final textColor = _readingTextColor(colorScheme);
 
     return ColoredBox(
       color: _readingBackgroundColor(colorScheme),
-      child: SingleChildScrollView(
+      child: ListView.builder(
         controller: _scrollController,
         padding: EdgeInsets.symmetric(
           horizontal: epubHorizontalPadding,
           vertical: 8,
         ),
-        child: SelectionArea(
-          key: ValueKey(_selectionClearVersion),
-          onSelectionChanged: (selection) {
-            final newText = selection?.plainText ?? '';
+        itemCount: widget.book.chapters.length,
+        itemBuilder: (context, index) {
+          final chapter = widget.book.chapters[index];
+          _measureChapterOffset(index);
 
-            final currentOffset = _scrollController.hasClients
-                ? _scrollController.offset
-                : null;
-
-            setState(() {
-              selectedText = newText;
-              selectedTextScrollOffset = newText.trim().isNotEmpty
-                  ? currentOffset
-                  : null;
-            });
-
-            _scheduleAutoTranslate(newText);
-          },
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: List.generate(widget.book.chapters.length, (index) {
-              final chapter = widget.book.chapters[index];
-
-              return Padding(
-                key: _chapterKeys[index],
-                padding: EdgeInsets.only(
-                  bottom: index == widget.book.chapters.length - 1 ? 24 : 36,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      chapter.title,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.headlineSmall?.copyWith(color: textColor),
+          return SelectionArea(
+            onSelectionChanged: _handleEpubSelectionChanged,
+            child: Padding(
+              key: _chapterKeys[index],
+              padding: EdgeInsets.only(
+                bottom: index == widget.book.chapters.length - 1 ? 24 : 36,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    chapter.title,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.headlineSmall?.copyWith(color: textColor),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    chapter.text,
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: epubFontSize,
+                      height: epubLineHeight,
                     ),
-                    const SizedBox(height: 18),
-                    Text(
-                      chapter.text,
-                      style: TextStyle(
-                        color: textColor,
-                        fontSize: epubFontSize,
-                        height: epubLineHeight,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ),
-        ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
