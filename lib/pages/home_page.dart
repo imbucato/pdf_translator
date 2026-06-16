@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../models/recent_document.dart';
 import '../services/epub_service.dart';
 import '../services/storage_service.dart';
+import 'bookmarks_page.dart';
 import 'epub_reader_page.dart';
 import 'pdf_translator_page.dart';
 import 'settings_page.dart';
@@ -202,7 +203,9 @@ class _HomePageState extends State<HomePage> {
 
       await Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => EpubReaderPage(book: book)),
+        MaterialPageRoute(
+          builder: (_) => EpubReaderPage(book: book, documentPath: file.path),
+        ),
       );
 
       if (!mounted) return;
@@ -495,6 +498,52 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildBookmarksAction(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Card(
+      elevation: 1.5,
+      shadowColor: colorScheme.shadow.withValues(alpha: 0.10),
+      margin: EdgeInsets.zero,
+      color: colorScheme.surfaceContainerLowest,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        contentPadding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
+        leading: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(Icons.bookmarks, color: colorScheme.onSecondaryContainer),
+        ),
+        title: Text(
+          'Segnalibri',
+          style: Theme.of(
+            context,
+          ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        subtitle: Text(
+          'Pagine e capitoli salvati',
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: _isOpeningDocument
+            ? null
+            : () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BookmarksPage()),
+                );
+              },
+      ),
+    );
+  }
+
   Widget _buildEmptyRecentDocuments(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
@@ -741,6 +790,8 @@ class _HomePageState extends State<HomePage> {
                   _buildHeader(context),
                   const SizedBox(height: 18),
                   _buildOpenDocumentAction(context),
+                  const SizedBox(height: 12),
+                  _buildBookmarksAction(context),
                   const SizedBox(height: 28),
                   _buildRecentDocumentsSection(context),
                 ],

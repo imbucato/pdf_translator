@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/bookmark_item.dart';
 import '../models/history_item.dart';
 import '../models/recent_document.dart';
 import 'ai_service.dart';
@@ -148,6 +149,73 @@ class StorageService {
   Future<void> clearRecentDocuments() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('recent_documents');
+  }
+
+  Future<List<BookmarkItem>> getBookmarks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList('bookmarks') ?? [];
+
+    final bookmarks = raw
+        .map((e) => BookmarkItem.fromJson(jsonDecode(e)))
+        .where(
+          (bookmark) =>
+              bookmark.id.isNotEmpty && bookmark.documentPath.isNotEmpty,
+        )
+        .toList();
+
+    bookmarks.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    return bookmarks;
+  }
+
+  Future<void> saveBookmarks(List<BookmarkItem> bookmarks) async {
+    final prefs = await SharedPreferences.getInstance();
+    final sortedBookmarks = [...bookmarks]
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final raw = sortedBookmarks
+        .map((bookmark) => jsonEncode(bookmark.toJson()))
+        .toList();
+
+    await prefs.setStringList('bookmarks', raw);
+  }
+
+  Future<void> addBookmark(BookmarkItem bookmark) async {
+    final bookmarks = await getBookmarks();
+    final updatedBookmarks = [
+      bookmark,
+      ...bookmarks.where((item) => !_isSameBookmark(item, bookmark)),
+    ];
+
+    await saveBookmarks(updatedBookmarks);
+  }
+
+  Future<void> removeBookmark(String id) async {
+    final bookmarks = await getBookmarks();
+    await saveBookmarks(bookmarks.where((item) => item.id != id).toList());
+  }
+
+  Future<bool> isBookmarked({
+    required String documentPath,
+    required String documentType,
+    int? pageNumber,
+    int? chapterIndex,
+  }) async {
+    final bookmarks = await getBookmarks();
+
+    return bookmarks.any(
+      (bookmark) =>
+          bookmark.documentPath == documentPath &&
+          bookmark.documentType == documentType &&
+          bookmark.pageNumber == pageNumber &&
+          bookmark.chapterIndex == chapterIndex,
+    );
+  }
+
+  bool _isSameBookmark(BookmarkItem a, BookmarkItem b) {
+    return a.documentPath == b.documentPath &&
+        a.documentType == b.documentType &&
+        a.pageNumber == b.pageNumber &&
+        a.chapterIndex == b.chapterIndex;
   }
 
   Future<String> makePdfStorageKey(String path) async {

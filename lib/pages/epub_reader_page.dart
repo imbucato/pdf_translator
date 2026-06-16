@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
+import '../models/bookmark_item.dart';
 import '../models/history_item.dart';
 import '../models/recent_document.dart';
 import '../services/ai_service.dart';
@@ -21,8 +22,17 @@ import 'result_page.dart';
 
 class EpubReaderPage extends StatefulWidget {
   final EpubBookData book;
+  final String? documentPath;
+  final int? initialChapterIndex;
+  final double? initialChapterAlignment;
 
-  const EpubReaderPage({super.key, required this.book});
+  const EpubReaderPage({
+    super.key,
+    required this.book,
+    this.documentPath,
+    this.initialChapterIndex,
+    this.initialChapterAlignment,
+  });
 
   @override
   State<EpubReaderPage> createState() => _EpubReaderPageState();
@@ -57,6 +67,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   AiProvider selectedProvider = AiProvider.openai;
   Map<String, String> cache = {};
   List<HistoryItem> history = [];
+  List<BookmarkItem> bookmarks = [];
   int _aiRequestVersion = 0;
 
   static const double _minEpubFontSize = 14.0;
@@ -85,6 +96,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     _loadSettings();
     _loadCache();
     _loadHistory();
+    _loadBookmarks();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!kDebugMode) return;
@@ -152,6 +164,16 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
     setState(() {
       history = savedHistory;
+    });
+  }
+
+  Future<void> _loadBookmarks() async {
+    final savedBookmarks = await _storageService.getBookmarks();
+
+    if (!mounted) return;
+
+    setState(() {
+      bookmarks = savedBookmarks;
     });
   }
 
@@ -344,7 +366,9 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => EpubReaderPage(book: book)),
+        MaterialPageRoute(
+          builder: (_) => EpubReaderPage(book: book, documentPath: file.path),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -411,6 +435,67 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
   String _currentChapterLabel() {
     return _chapterLabelForIndex(selectedChapterIndex);
+  }
+
+  BookmarkItem? _currentEpubBookmark() {
+    final path = widget.documentPath;
+    if (path == null) return null;
+
+    final chapterIndex = _currentVisibleChapterIndex();
+
+    for (final bookmark in bookmarks) {
+      if (bookmark.documentType == 'epub' &&
+          bookmark.documentPath == path &&
+          bookmark.chapterIndex == chapterIndex) {
+        return bookmark;
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> _toggleCurrentEpubBookmark() async {
+    final path = widget.documentPath;
+    if (path == null || path.isEmpty || widget.book.chapters.isEmpty) return;
+
+    final existingBookmark = _currentEpubBookmark();
+
+    if (existingBookmark != null) {
+      await _storageService.removeBookmark(existingBookmark.id);
+      await _loadBookmarks();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Segnalibro rimosso')));
+      return;
+    }
+
+    final location = _currentVisibleChapterLocation();
+    final chapterIndex = location.index;
+    final chapterTitle = _chapterLabelForIndex(chapterIndex);
+
+    await _storageService.addBookmark(
+      BookmarkItem(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        documentPath: path,
+        documentName: _documentNameFromPath(path),
+        documentType: 'epub',
+        createdAt: DateTime.now(),
+        chapterIndex: chapterIndex,
+        chapterTitle: chapterTitle,
+        epubAlignment: location.alignment,
+        positionLabel: chapterTitle,
+      ),
+    );
+    await _loadBookmarks();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Segnalibro aggiunto')));
   }
 
   String _limitedSelectedText() {
@@ -687,13 +772,18 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
         ? 0
         : ((savedProgress / 100) * (widget.book.chapters.length - 1)).round();
 
-    final chapterIndex = (savedChapterIndex ?? fallbackChapterIndex).clamp(
-      0,
-      widget.book.chapters.length - 1,
-    );
+    final chapterIndex =
+        (widget.initialChapterIndex ??
+                savedChapterIndex ??
+                fallbackChapterIndex)
+            .clamp(0, widget.book.chapters.length - 1);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _jumpToChapter(chapterIndex, duration: Duration.zero);
+      _jumpToChapter(
+        chapterIndex,
+        duration: Duration.zero,
+        alignment: widget.initialChapterAlignment ?? 0,
+      );
     });
   }
 
@@ -1071,9 +1161,22 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   }
 
   PreferredSizeWidget _buildEpubAppBar() {
+    final currentBookmark = _currentEpubBookmark();
+
     return AppBar(
       //title: Text(widget.book.title, overflow: TextOverflow.ellipsis),
       actions: [
+        IconButton(
+          tooltip: currentBookmark != null
+              ? 'Rimuovi segnalibro'
+              : 'Aggiungi segnalibro',
+          icon: Icon(
+            currentBookmark != null ? Icons.bookmark : Icons.bookmark_border,
+          ),
+          onPressed: widget.documentPath == null
+              ? null
+              : _toggleCurrentEpubBookmark,
+        ),
         IconButton(
           tooltip: 'Cronologia EPUB',
           icon: const Icon(Icons.history),

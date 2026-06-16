@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart' as fp;
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
+import '../models/bookmark_item.dart';
 import '../models/history_item.dart';
 import '../models/recent_document.dart';
 import '../services/ai_service.dart';
@@ -21,8 +22,13 @@ import '../services/epub_service.dart';
 
 class PdfTranslatorPage extends StatefulWidget {
   final String? initialPdfPath;
+  final int? initialPageNumber;
 
-  const PdfTranslatorPage({super.key, this.initialPdfPath});
+  const PdfTranslatorPage({
+    super.key,
+    this.initialPdfPath,
+    this.initialPageNumber,
+  });
 
   @override
   State<PdfTranslatorPage> createState() => _PdfTranslatorPageState();
@@ -51,6 +57,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
 
   List<HistoryItem> history = [];
   List<RecentDocument> recentDocuments = [];
+  List<BookmarkItem> bookmarks = [];
   Map<String, String> cache = {};
 
   Timer? autoTranslateTimer;
@@ -111,15 +118,29 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
     });
   }
 
+  Future<void> loadBookmarks() async {
+    final savedBookmarks = await storageService.getBookmarks();
+
+    if (!mounted) return;
+
+    setState(() {
+      bookmarks = savedBookmarks;
+    });
+  }
+
   Future<void> initializePage() async {
     await loadSettings();
     await loadHistory();
     await loadCache();
     await loadRecentDocuments();
+    await loadBookmarks();
 
     if (!mounted || widget.initialPdfPath == null) return;
 
-    await openPdfPath(widget.initialPdfPath!);
+    await openPdfPath(
+      widget.initialPdfPath!,
+      initialPage: widget.initialPageNumber,
+    );
   }
 
   Future<void> pickPdf() async {
@@ -162,11 +183,11 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
     }
   }
 
-  Future<void> openPdfPath(String path) async {
-    await loadPdfFile(File(path));
+  Future<void> openPdfPath(String path, {int? initialPage}) async {
+    await loadPdfFile(File(path), initialPage: initialPage);
   }
 
-  Future<void> loadPdfFile(File file) async {
+  Future<void> loadPdfFile(File file, {int? initialPage}) async {
     final path = file.path;
     final key = await storageService.makePdfStorageKey(path);
     final savedPage = await storageService.loadSavedPage(key);
@@ -179,7 +200,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
       selectedText = '';
       resultText = '';
       resultTitle = 'Risultato';
-      currentPage = savedPage;
+      currentPage = initialPage ?? savedPage;
       lastAutoTranslateKey = '';
     });
 
@@ -200,7 +221,9 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => EpubReaderPage(book: book)),
+        MaterialPageRoute(
+          builder: (_) => EpubReaderPage(book: book, documentPath: file.path),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -258,6 +281,59 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
       pdfStorageKey: pdfStorageKey!,
       currentPage: currentPage,
     );
+  }
+
+  BookmarkItem? currentPdfBookmark() {
+    final path = pdfFile?.path;
+    if (path == null) return null;
+
+    for (final bookmark in bookmarks) {
+      if (bookmark.documentType == 'pdf' &&
+          bookmark.documentPath == path &&
+          bookmark.pageNumber == currentPage) {
+        return bookmark;
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> toggleCurrentPdfBookmark() async {
+    final file = pdfFile;
+    if (file == null) return;
+
+    final existingBookmark = currentPdfBookmark();
+
+    if (existingBookmark != null) {
+      await storageService.removeBookmark(existingBookmark.id);
+      await loadBookmarks();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Segnalibro rimosso')));
+      return;
+    }
+
+    await storageService.addBookmark(
+      BookmarkItem(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        documentPath: file.path,
+        documentName: documentNameFromPath(file.path),
+        documentType: 'pdf',
+        createdAt: DateTime.now(),
+        pageNumber: currentPage,
+        positionLabel: 'Pagina $currentPage',
+      ),
+    );
+    await loadBookmarks();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Segnalibro aggiunto')));
   }
 
   String limitedSelectedText() {
@@ -639,7 +715,9 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
         });
       },
       onPageChanged: (details) {
-        currentPage = details.newPageNumber;
+        setState(() {
+          currentPage = details.newPageNumber;
+        });
         saveCurrentPage();
       },
       onTextSelectionChanged: (details) {
@@ -695,8 +773,15 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   }
 
   PreferredSizeWidget buildPdfAppBar() {
+    final isBookmarked = currentPdfBookmark() != null;
+
     return AppBar(
       actions: [
+        IconButton(
+          tooltip: isBookmarked ? 'Rimuovi segnalibro' : 'Aggiungi segnalibro',
+          icon: Icon(isBookmarked ? Icons.bookmark : Icons.bookmark_border),
+          onPressed: pdfFile == null ? null : toggleCurrentPdfBookmark,
+        ),
         IconButton(
           tooltip: 'Credito',
           icon: const Icon(Icons.account_balance_wallet),
