@@ -8,6 +8,7 @@ class BookmarkItem {
   final int? chapterIndex;
   final String? chapterTitle;
   final double? epubAlignment;
+  final double? epubPositionInChapter;
   final String positionLabel;
 
   const BookmarkItem({
@@ -21,6 +22,7 @@ class BookmarkItem {
     this.chapterIndex,
     this.chapterTitle,
     this.epubAlignment,
+    this.epubPositionInChapter,
   });
 
   factory BookmarkItem.fromJson(Map<String, dynamic> json) {
@@ -36,6 +38,7 @@ class BookmarkItem {
       chapterIndex: _intFromJson(json['chapterIndex']),
       chapterTitle: json['chapterTitle']?.toString(),
       epubAlignment: _doubleFromJson(json['epubAlignment']),
+      epubPositionInChapter: _doubleFromJson(json['epubPositionInChapter']),
       positionLabel: json['positionLabel']?.toString() ?? '',
     );
   }
@@ -62,6 +65,7 @@ class BookmarkItem {
       'chapterIndex': chapterIndex,
       'chapterTitle': chapterTitle,
       'epubAlignment': epubAlignment,
+      'epubPositionInChapter': epubPositionInChapter,
       'positionLabel': positionLabel,
     };
   }

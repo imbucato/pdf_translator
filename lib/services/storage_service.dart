@@ -9,6 +9,8 @@ import '../models/recent_document.dart';
 import 'ai_service.dart';
 
 class StorageService {
+  static const double _epubBookmarkBucketSize = 0.25;
+
   int _compareRecentDocuments(RecentDocument a, RecentDocument b) {
     if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
 
@@ -199,6 +201,7 @@ class StorageService {
     required String documentType,
     int? pageNumber,
     int? chapterIndex,
+    double? epubPositionInChapter,
   }) async {
     final bookmarks = await getBookmarks();
 
@@ -206,16 +209,62 @@ class StorageService {
       (bookmark) =>
           bookmark.documentPath == documentPath &&
           bookmark.documentType == documentType &&
-          bookmark.pageNumber == pageNumber &&
-          bookmark.chapterIndex == chapterIndex,
+          _isSameBookmarkPosition(
+            bookmark,
+            documentType: documentType,
+            pageNumber: pageNumber,
+            chapterIndex: chapterIndex,
+            epubPositionInChapter: epubPositionInChapter,
+          ),
     );
   }
 
   bool _isSameBookmark(BookmarkItem a, BookmarkItem b) {
+    if (a.documentPath != b.documentPath || a.documentType != b.documentType) {
+      return false;
+    }
+
+    if (a.documentType == 'pdf') {
+      return a.pageNumber == b.pageNumber;
+    }
+
+    if (a.documentType == 'epub') {
+      return a.chapterIndex == b.chapterIndex &&
+          _epubBookmarkBucket(a.epubPositionInChapter) ==
+              _epubBookmarkBucket(b.epubPositionInChapter);
+    }
+
     return a.documentPath == b.documentPath &&
         a.documentType == b.documentType &&
         a.pageNumber == b.pageNumber &&
         a.chapterIndex == b.chapterIndex;
+  }
+
+  bool _isSameBookmarkPosition(
+    BookmarkItem bookmark, {
+    required String documentType,
+    int? pageNumber,
+    int? chapterIndex,
+    double? epubPositionInChapter,
+  }) {
+    if (documentType == 'pdf') {
+      return bookmark.pageNumber == pageNumber;
+    }
+
+    if (documentType == 'epub') {
+      return bookmark.chapterIndex == chapterIndex &&
+          _epubBookmarkBucket(bookmark.epubPositionInChapter) ==
+              _epubBookmarkBucket(epubPositionInChapter);
+    }
+
+    return bookmark.pageNumber == pageNumber &&
+        bookmark.chapterIndex == chapterIndex;
+  }
+
+  int _epubBookmarkBucket(double? position) {
+    final safePosition = (position ?? 0).clamp(0, double.infinity).toDouble();
+
+    return (safePosition / _epubBookmarkBucketSize).round();
   }
 
   Future<String> makePdfStorageKey(String path) async {

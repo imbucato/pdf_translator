@@ -39,6 +39,8 @@ class EpubReaderPage extends StatefulWidget {
 }
 
 class _EpubReaderPageState extends State<EpubReaderPage> {
+  static const double _epubBookmarkBucketSize = 0.25;
+
   final AiService _aiService = AiService();
   final StorageService _storageService = StorageService();
   final ItemScrollController _itemScrollController = ItemScrollController();
@@ -441,12 +443,15 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     final path = widget.documentPath;
     if (path == null) return null;
 
-    final chapterIndex = _currentVisibleChapterIndex();
+    final location = _currentVisibleChapterLocation();
+    final positionInChapter = _epubPositionInChapter(location.alignment);
 
     for (final bookmark in bookmarks) {
       if (bookmark.documentType == 'epub' &&
           bookmark.documentPath == path &&
-          bookmark.chapterIndex == chapterIndex) {
+          bookmark.chapterIndex == location.index &&
+          _epubBookmarkBucket(bookmark.epubPositionInChapter) ==
+              _epubBookmarkBucket(positionInChapter)) {
         return bookmark;
       }
     }
@@ -475,6 +480,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     final location = _currentVisibleChapterLocation();
     final chapterIndex = location.index;
     final chapterTitle = _chapterLabelForIndex(chapterIndex);
+    final positionInChapter = _epubPositionInChapter(location.alignment);
 
     await _storageService.addBookmark(
       BookmarkItem(
@@ -486,7 +492,8 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
         chapterIndex: chapterIndex,
         chapterTitle: chapterTitle,
         epubAlignment: location.alignment,
-        positionLabel: chapterTitle,
+        epubPositionInChapter: positionInChapter,
+        positionLabel: '$chapterTitle - punto salvato',
       ),
     );
     await _loadBookmarks();
@@ -504,6 +511,16 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     if (text.length <= 1200) return text;
 
     return text.substring(0, 1200);
+  }
+
+  double _epubPositionInChapter(double alignment) {
+    return (-alignment).clamp(0, double.infinity).toDouble();
+  }
+
+  int _epubBookmarkBucket(double? position) {
+    final safePosition = (position ?? 0).clamp(0, double.infinity).toDouble();
+
+    return (safePosition / _epubBookmarkBucketSize).round();
   }
 
   Future<void> _saveHistoryItem({

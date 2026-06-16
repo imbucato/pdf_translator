@@ -100,7 +100,11 @@ class _BookmarksPageState extends State<BookmarksPage> {
             book: book,
             documentPath: bookmark.documentPath,
             initialChapterIndex: bookmark.chapterIndex,
-            initialChapterAlignment: bookmark.epubAlignment,
+            initialChapterAlignment:
+                bookmark.epubAlignment ??
+                (bookmark.epubPositionInChapter == null
+                    ? null
+                    : -bookmark.epubPositionInChapter!),
           ),
         ),
       );
