@@ -8,6 +8,7 @@ import '../services/epub_service.dart';
 import '../services/storage_service.dart';
 import 'epub_reader_page.dart';
 import 'pdf_translator_page.dart';
+import 'settings_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -319,6 +320,13 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<void> _openSettings() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsPage()),
+    );
+  }
+
   String _formatOpenedAt(DateTime openedAt) {
     if (openedAt.millisecondsSinceEpoch == 0) return '';
 
@@ -362,6 +370,12 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 const Spacer(),
+                IconButton.filledTonal(
+                  tooltip: 'Impostazioni',
+                  icon: const Icon(Icons.settings),
+                  onPressed: _openSettings,
+                ),
+                const SizedBox(width: 8),
                 IconButton.filledTonal(
                   tooltip: 'Info app',
                   icon: const Icon(Icons.info_outline),
