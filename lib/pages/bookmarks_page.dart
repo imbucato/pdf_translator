@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/bookmark_item.dart';
 import '../services/epub_service.dart';
 import '../services/storage_service.dart';
+import '../widgets/document_thumbnail.dart';
 import 'epub_reader_page.dart';
 import 'pdf_translator_page.dart';
 
@@ -19,6 +20,7 @@ class _BookmarksPageState extends State<BookmarksPage> {
   final StorageService _storageService = StorageService();
 
   List<BookmarkItem> _bookmarks = [];
+  Map<String, String> _bookmarkThumbnailPaths = {};
   bool _isLoading = true;
   bool _isOpeningDocument = false;
 
@@ -37,6 +39,55 @@ class _BookmarksPageState extends State<BookmarksPage> {
       _bookmarks = bookmarks;
       _isLoading = false;
     });
+
+    await _loadBookmarkThumbnails(bookmarks);
+  }
+
+  Future<void> _loadBookmarkThumbnails(List<BookmarkItem> bookmarks) async {
+    final recentDocuments = await _storageService.loadRecentDocuments();
+    final recentThumbnailPaths = {
+      for (final document in recentDocuments)
+        if (_thumbnailPathExists(document.thumbnailPath))
+          document.path: document.thumbnailPath!,
+    };
+    final thumbnailPaths = <String, String>{};
+    final epubService = EpubService();
+
+    for (final bookmark in bookmarks) {
+      final bookmarkThumbnailPath = bookmark.thumbnailPath;
+
+      if (_thumbnailPathExists(bookmarkThumbnailPath)) {
+        thumbnailPaths[bookmark.id] = bookmarkThumbnailPath!;
+        continue;
+      }
+
+      final recentThumbnailPath = recentThumbnailPaths[bookmark.documentPath];
+
+      if (_thumbnailPathExists(recentThumbnailPath)) {
+        thumbnailPaths[bookmark.id] = recentThumbnailPath!;
+        continue;
+      }
+
+      if (bookmark.documentType.toLowerCase() != 'epub') continue;
+
+      final coverPath = await epubService.cacheCoverForFile(
+        File(bookmark.documentPath),
+      );
+
+      if (_thumbnailPathExists(coverPath)) {
+        thumbnailPaths[bookmark.id] = coverPath!;
+      }
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _bookmarkThumbnailPaths = thumbnailPaths;
+    });
+  }
+
+  bool _thumbnailPathExists(String? path) {
+    return path != null && path.isNotEmpty && File(path).existsSync();
   }
 
   Future<void> _removeBookmark(BookmarkItem bookmark) async {
@@ -187,7 +238,6 @@ class _BookmarksPageState extends State<BookmarksPage> {
 
   Widget _buildBookmarkCard(BuildContext context, BookmarkItem bookmark) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isPdf = bookmark.documentType.toLowerCase() == 'pdf';
     final createdAt = _formatCreatedAt(bookmark.createdAt);
 
     return Card(
@@ -199,21 +249,10 @@ class _BookmarksPageState extends State<BookmarksPage> {
       clipBehavior: Clip.antiAlias,
       child: ListTile(
         contentPadding: const EdgeInsets.fromLTRB(16, 10, 6, 10),
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: isPdf
-                ? colorScheme.primaryContainer
-                : colorScheme.secondaryContainer,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(
-            isPdf ? Icons.picture_as_pdf : Icons.menu_book,
-            color: isPdf
-                ? colorScheme.onPrimaryContainer
-                : colorScheme.onSecondaryContainer,
-          ),
+        leading: DocumentThumbnail(
+          documentType: bookmark.documentType,
+          thumbnailPath:
+              bookmark.thumbnailPath ?? _bookmarkThumbnailPaths[bookmark.id],
         ),
         title: Text(
           bookmark.documentName,

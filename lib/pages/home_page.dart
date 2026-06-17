@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../models/recent_document.dart';
 import '../services/epub_service.dart';
 import '../services/storage_service.dart';
+import '../widgets/document_thumbnail.dart';
 import 'bookmarks_page.dart';
 import 'epub_reader_page.dart';
 import 'pdf_translator_page.dart';
@@ -41,6 +42,7 @@ class _HomePageState extends State<HomePage> {
     });
 
     await _loadRecentPositionLabels(documents);
+    await _backfillRecentThumbnails(documents);
   }
 
   Future<void> _loadRecentPositionLabels(List<RecentDocument> documents) async {
@@ -55,6 +57,45 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _recentPositionLabels = labels;
     });
+  }
+
+  Future<void> _backfillRecentThumbnails(List<RecentDocument> documents) async {
+    var didUpdate = false;
+    final updatedDocuments = <RecentDocument>[];
+    final epubService = EpubService();
+
+    for (final document in documents) {
+      if (document.type.toLowerCase() != 'epub' ||
+          _thumbnailPathExists(document.thumbnailPath)) {
+        updatedDocuments.add(document);
+        continue;
+      }
+
+      final file = File(document.path);
+      final thumbnailPath = await epubService.cacheCoverForFile(file);
+
+      if (thumbnailPath == null) {
+        updatedDocuments.add(document);
+        continue;
+      }
+
+      updatedDocuments.add(document.copyWith(thumbnailPath: thumbnailPath));
+      didUpdate = true;
+    }
+
+    if (!didUpdate) return;
+
+    await _storageService.saveRecentDocuments(updatedDocuments);
+
+    if (!mounted) return;
+
+    setState(() {
+      _recentDocuments = updatedDocuments;
+    });
+  }
+
+  bool _thumbnailPathExists(String? path) {
+    return path != null && path.isNotEmpty && File(path).existsSync();
   }
 
   Future<String> _recentPositionLabel(RecentDocument document) async {
@@ -197,7 +238,11 @@ class _HomePageState extends State<HomePage> {
 
       if (!mounted) return;
 
-      await _addRecentDocument(path: file.path, type: 'epub');
+      await _addRecentDocument(
+        path: file.path,
+        type: 'epub',
+        thumbnailPath: book.coverPath,
+      );
 
       if (!mounted) return;
 
@@ -229,6 +274,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _addRecentDocument({
     required String path,
     required String type,
+    String? thumbnailPath,
   }) async {
     await _storageService.addRecentDocument(
       RecentDocument(
@@ -236,6 +282,7 @@ class _HomePageState extends State<HomePage> {
         name: _documentNameFromPath(path),
         type: type,
         openedAt: DateTime.now(),
+        thumbnailPath: thumbnailPath,
       ),
     );
   }
@@ -612,23 +659,10 @@ class _HomePageState extends State<HomePage> {
       clipBehavior: Clip.antiAlias,
       child: ListTile(
         contentPadding: const EdgeInsets.fromLTRB(16, 10, 6, 10),
-        minLeadingWidth: 42,
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: isPdf
-                ? colorScheme.primaryContainer
-                : colorScheme.secondaryContainer,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(
-            isPdf ? Icons.picture_as_pdf : Icons.menu_book,
-            color: isPdf
-                ? colorScheme.onPrimaryContainer
-                : colorScheme.onSecondaryContainer,
-            size: 24,
-          ),
+        minLeadingWidth: 44,
+        leading: DocumentThumbnail(
+          documentType: document.type,
+          thumbnailPath: document.thumbnailPath,
         ),
         title: Row(
           children: [

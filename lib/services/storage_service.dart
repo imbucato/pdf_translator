@@ -115,10 +115,14 @@ class StorageService {
     final existingDocuments = documents
         .where((item) => item.path == document.path)
         .toList();
+    final existingDocument = existingDocuments.isEmpty
+        ? null
+        : existingDocuments.first;
     final updatedDocument = document.copyWith(
       isPinned:
           document.isPinned ||
-          (existingDocuments.isNotEmpty && existingDocuments.first.isPinned),
+          (existingDocument != null && existingDocument.isPinned),
+      thumbnailPath: document.thumbnailPath ?? existingDocument?.thumbnailPath,
     );
     final updatedDocuments = [
       updatedDocument,
