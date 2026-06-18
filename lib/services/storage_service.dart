@@ -85,6 +85,26 @@ class StorageService {
     await prefs.setString('epub_reading_theme', value);
   }
 
+  Future<String> loadEpubFontFamily() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('epub_font_family') ?? 'default';
+  }
+
+  Future<void> saveEpubFontFamily(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('epub_font_family', value);
+  }
+
+  Future<String> loadEpubTextAlign() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('epub_text_align') ?? 'left';
+  }
+
+  Future<void> saveEpubTextAlign(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('epub_text_align', value);
+  }
+
   Future<List<RecentDocument>> loadRecentDocuments() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList('recent_documents') ?? [];

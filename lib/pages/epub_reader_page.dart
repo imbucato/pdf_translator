@@ -59,6 +59,8 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   double epubHorizontalPadding = 18.0;
   double epubLineHeight = 1.5;
   String epubReadingTheme = 'light';
+  String epubFontFamily = 'default';
+  String epubTextAlign = 'left';
   String selectedText = '';
   String resultTitle = 'Risultato';
   String resultText = '';
@@ -85,6 +87,12 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     'sepia',
     'dark',
   ];
+  static const List<String> _epubFontFamilyValues = [
+    'default',
+    'serif',
+    'sans',
+  ];
+  static const List<String> _epubTextAlignValues = ['left', 'justify'];
 
   @override
   void initState() {
@@ -128,6 +136,8 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
         .loadEpubHorizontalPadding();
     final savedEpubLineHeight = await _storageService.loadEpubLineHeight();
     final savedEpubReadingTheme = await _storageService.loadEpubReadingTheme();
+    final savedEpubFontFamily = await _storageService.loadEpubFontFamily();
+    final savedEpubTextAlign = await _storageService.loadEpubTextAlign();
 
     if (!mounted) return;
 
@@ -148,6 +158,12 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       epubReadingTheme = _epubReadingThemeValues.contains(savedEpubReadingTheme)
           ? savedEpubReadingTheme
           : 'light';
+      epubFontFamily = _epubFontFamilyValues.contains(savedEpubFontFamily)
+          ? savedEpubFontFamily
+          : 'default';
+      epubTextAlign = _epubTextAlignValues.contains(savedEpubTextAlign)
+          ? savedEpubTextAlign
+          : 'left';
     });
   }
 
@@ -1019,6 +1035,48 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     unawaited(_storageService.saveEpubReadingTheme(value));
   }
 
+  void _applyEpubComfortPreset(String value) {
+    final preset = switch (value) {
+      'compact' => (fontSize: 16.0, padding: 10.0, lineHeight: 1.3),
+      'comfortable' => (fontSize: 20.0, padding: 26.0, lineHeight: 1.7),
+      _ => (fontSize: 18.0, padding: 18.0, lineHeight: 1.5),
+    };
+
+    _updateReadingAppearance(() {
+      epubFontSize = preset.fontSize;
+      epubHorizontalPadding = preset.padding;
+      epubLineHeight = preset.lineHeight;
+    });
+
+    unawaited(_storageService.saveEpubFontSize(preset.fontSize));
+    unawaited(_storageService.saveEpubHorizontalPadding(preset.padding));
+    unawaited(_storageService.saveEpubLineHeight(preset.lineHeight));
+  }
+
+  void _changeEpubFontFamily(String value) {
+    if (!_epubFontFamilyValues.contains(value) || value == epubFontFamily) {
+      return;
+    }
+
+    _updateReadingAppearance(() {
+      epubFontFamily = value;
+    });
+
+    unawaited(_storageService.saveEpubFontFamily(value));
+  }
+
+  void _changeEpubTextAlign(String value) {
+    if (!_epubTextAlignValues.contains(value) || value == epubTextAlign) {
+      return;
+    }
+
+    _updateReadingAppearance(() {
+      epubTextAlign = value;
+    });
+
+    unawaited(_storageService.saveEpubTextAlign(value));
+  }
+
   void _updateReadingAppearance(VoidCallback update) {
     final savedLocation = _currentVisibleChapterLocation();
 
@@ -1051,6 +1109,18 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       default:
         return colorScheme.onSurface;
     }
+  }
+
+  String? _epubFontFamily() {
+    return switch (epubFontFamily) {
+      'serif' => 'serif',
+      'sans' => 'sans-serif',
+      _ => null,
+    };
+  }
+
+  TextAlign _epubTextAlign() {
+    return epubTextAlign == 'justify' ? TextAlign.justify : TextAlign.left;
   }
 
   void _handleEpubSelectionChanged(SelectedContent? selection) {
@@ -1095,6 +1165,92 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
                     Text(
                       'Impostazioni lettura',
                       style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Preset comfort',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        optionChip(
+                          label: 'Compatto',
+                          selected:
+                              epubFontSize == 16.0 &&
+                              epubHorizontalPadding == 10.0 &&
+                              epubLineHeight == 1.3,
+                          onSelected: () => _applyEpubComfortPreset('compact'),
+                        ),
+                        optionChip(
+                          label: 'Normale',
+                          selected:
+                              epubFontSize == 18.0 &&
+                              epubHorizontalPadding == 18.0 &&
+                              epubLineHeight == 1.5,
+                          onSelected: () => _applyEpubComfortPreset('normal'),
+                        ),
+                        optionChip(
+                          label: 'Comodo',
+                          selected:
+                              epubFontSize == 20.0 &&
+                              epubHorizontalPadding == 26.0 &&
+                              epubLineHeight == 1.7,
+                          onSelected: () =>
+                              _applyEpubComfortPreset('comfortable'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Font',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        optionChip(
+                          label: 'Predefinito',
+                          selected: epubFontFamily == 'default',
+                          onSelected: () => _changeEpubFontFamily('default'),
+                        ),
+                        optionChip(
+                          label: 'Serif',
+                          selected: epubFontFamily == 'serif',
+                          onSelected: () => _changeEpubFontFamily('serif'),
+                        ),
+                        optionChip(
+                          label: 'Sans',
+                          selected: epubFontFamily == 'sans',
+                          onSelected: () => _changeEpubFontFamily('sans'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Allineamento',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        optionChip(
+                          label: 'Sinistra',
+                          selected: epubTextAlign == 'left',
+                          onSelected: () => _changeEpubTextAlign('left'),
+                        ),
+                        optionChip(
+                          label: 'Giustificato',
+                          selected: epubTextAlign == 'justify',
+                          onSelected: () => _changeEpubTextAlign('justify'),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 18),
                     Row(
@@ -1330,6 +1486,8 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
     final colorScheme = Theme.of(context).colorScheme;
     final textColor = _readingTextColor(colorScheme);
+    final fontFamily = _epubFontFamily();
+    final textAlign = _epubTextAlign();
 
     return ColoredBox(
       color: _readingBackgroundColor(colorScheme),
@@ -1362,8 +1520,10 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
                   const SizedBox(height: 18),
                   Text(
                     chapter.text,
+                    textAlign: textAlign,
                     style: TextStyle(
                       color: textColor,
+                      fontFamily: fontFamily,
                       fontSize: epubFontSize,
                       height: epubLineHeight,
                     ),
