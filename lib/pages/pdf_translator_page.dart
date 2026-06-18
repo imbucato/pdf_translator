@@ -39,6 +39,8 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   final AiService aiService = AiService();
   final StorageService storageService = StorageService();
   final ExportService exportService = ExportService();
+  final ValueNotifier<_PdfProgressState> pdfProgressNotifier =
+      ValueNotifier<_PdfProgressState>(const _PdfProgressState());
 
   File? pdfFile;
   String? pdfStorageKey;
@@ -73,6 +75,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   @override
   void dispose() {
     autoTranslateTimer?.cancel();
+    pdfProgressNotifier.dispose();
     super.dispose();
   }
 
@@ -203,6 +206,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
       currentPage = initialPage ?? savedPage;
       lastAutoTranslateKey = '';
     });
+    _updatePdfProgressNotifier(totalPages: 0);
 
     await addRecentDocument(path: path, type: 'pdf');
   }
@@ -310,6 +314,13 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
     await storageService.saveCurrentPage(
       pdfStorageKey: pdfStorageKey!,
       currentPage: currentPage,
+    );
+  }
+
+  void _updatePdfProgressNotifier({int? totalPages}) {
+    pdfProgressNotifier.value = _PdfProgressState(
+      currentPage: currentPage,
+      totalPages: totalPages ?? pdfProgressNotifier.value.totalPages,
     );
   }
 
@@ -616,6 +627,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
                   '${item.action} · ${item.provider} - pagina ${item.page}';
               resultText = item.result;
             });
+            _updatePdfProgressNotifier();
 
             Future.delayed(const Duration(milliseconds: 300), () {
               if (mounted) {
@@ -738,7 +750,13 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
       pdfFile!,
       controller: pdfController,
       enableTextSelection: true,
-      onDocumentLoaded: (_) {
+      onDocumentLoaded: (details) {
+        final totalPages = details.document.pages.count;
+        if (totalPages > 0) {
+          currentPage = currentPage.clamp(1, totalPages).toInt();
+        }
+        _updatePdfProgressNotifier(totalPages: totalPages);
+
         Future.delayed(const Duration(milliseconds: 400), () {
           if (mounted && currentPage > 1) {
             pdfController.jumpToPage(currentPage);
@@ -746,9 +764,8 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
         });
       },
       onPageChanged: (details) {
-        setState(() {
-          currentPage = details.newPageNumber;
-        });
+        currentPage = details.newPageNumber;
+        _updatePdfProgressNotifier();
         saveCurrentPage();
       },
       onTextSelectionChanged: (details) {
@@ -763,55 +780,117 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
     );
   }
 
+  Widget buildPdfProgressBar() {
+    if (pdfFile == null) return const SizedBox.shrink();
+
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ValueListenableBuilder<_PdfProgressState>(
+      valueListenable: pdfProgressNotifier,
+      builder: (context, progressState, _) {
+        return ColoredBox(
+          color: colorScheme.surface,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 5, 16, 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  progressState.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    minHeight: 3,
+                    value: progressState.progress,
+                    backgroundColor: colorScheme.onSurface.withValues(
+                      alpha: 0.10,
+                    ),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      colorScheme.primary.withValues(alpha: 0.85),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget buildPdfBody() {
     return Column(
       children: [
+        buildPdfProgressBar(),
         Expanded(child: buildPdfViewer()),
-        TranslationPanel(
-          selectedText: selectedText,
-          resultText: resultText,
-          resultTitle: resultTitle,
-          isLoading: isLoading,
-          currentPage: currentPage,
-          autoTranslate: autoTranslate,
-          selectedProvider: selectedProvider,
-          onProviderChanged: (value) {
-            setState(() {
-              selectedProvider = value;
-              lastAutoTranslateKey = '';
-            });
+        ValueListenableBuilder<_PdfProgressState>(
+          valueListenable: pdfProgressNotifier,
+          builder: (context, progressState, _) {
+            return TranslationPanel(
+              selectedText: selectedText,
+              resultText: resultText,
+              resultTitle: resultTitle,
+              isLoading: isLoading,
+              currentPage: progressState.currentPage,
+              autoTranslate: autoTranslate,
+              selectedProvider: selectedProvider,
+              onProviderChanged: (value) {
+                setState(() {
+                  selectedProvider = value;
+                  lastAutoTranslateKey = '';
+                });
 
-            storageService.saveProvider(value);
+                storageService.saveProvider(value);
+              },
+              onAutoTranslateChanged: (value) {
+                setState(() {
+                  autoTranslate = value;
+                  lastAutoTranslateKey = '';
+                });
+
+                storageService.saveAutoTranslate(value);
+
+                if (value && selectedText.trim().isNotEmpty) {
+                  scheduleAutoTranslate(selectedText);
+                }
+              },
+              onShowActionPopup: showActionPopup,
+              onAskAi: askAi,
+              onOpenResult: openResult,
+            );
           },
-          onAutoTranslateChanged: (value) {
-            setState(() {
-              autoTranslate = value;
-              lastAutoTranslateKey = '';
-            });
-
-            storageService.saveAutoTranslate(value);
-
-            if (value && selectedText.trim().isNotEmpty) {
-              scheduleAutoTranslate(selectedText);
-            }
-          },
-          onShowActionPopup: showActionPopup,
-          onAskAi: askAi,
-          onOpenResult: openResult,
         ),
       ],
     );
   }
 
   PreferredSizeWidget buildPdfAppBar() {
-    final isBookmarked = currentPdfBookmark() != null;
-
     return AppBar(
       actions: [
-        IconButton(
-          tooltip: isBookmarked ? 'Rimuovi segnalibro' : 'Aggiungi segnalibro',
-          icon: Icon(isBookmarked ? Icons.bookmark : Icons.bookmark_border),
-          onPressed: pdfFile == null ? null : toggleCurrentPdfBookmark,
+        ValueListenableBuilder<_PdfProgressState>(
+          valueListenable: pdfProgressNotifier,
+          builder: (context, _, _) {
+            final isBookmarked = currentPdfBookmark() != null;
+
+            return IconButton(
+              tooltip: isBookmarked
+                  ? 'Rimuovi segnalibro'
+                  : 'Aggiungi segnalibro',
+              icon: Icon(isBookmarked ? Icons.bookmark : Icons.bookmark_border),
+              onPressed: pdfFile == null ? null : toggleCurrentPdfBookmark,
+            );
+          },
         ),
         IconButton(
           tooltip: 'Credito',
@@ -845,5 +924,27 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(appBar: buildPdfAppBar(), body: buildPdfBody());
+  }
+}
+
+class _PdfProgressState {
+  final int currentPage;
+  final int totalPages;
+
+  const _PdfProgressState({this.currentPage = 1, this.totalPages = 0});
+
+  double? get progress {
+    if (totalPages <= 0) return null;
+
+    return (currentPage / totalPages).clamp(0.0, 1.0).toDouble();
+  }
+
+  String get label {
+    if (totalPages <= 0) return 'Pagina $currentPage';
+
+    final safeProgress = progress ?? 0;
+    final percent = (safeProgress * 100).round().clamp(0, 100);
+
+    return 'Pagina $currentPage di $totalPages · $percent%';
   }
 }
