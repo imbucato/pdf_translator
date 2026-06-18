@@ -40,6 +40,7 @@ class EpubReaderPage extends StatefulWidget {
 
 class _EpubReaderPageState extends State<EpubReaderPage> {
   static const double _epubBookmarkBucketSize = 0.25;
+  static const double _readingProgressUpdateThreshold = 0.005;
 
   final AiService _aiService = AiService();
   final StorageService _storageService = StorageService();
@@ -53,6 +54,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   Timer? _savePositionDebounce;
   Timer? _autoTranslateTimer;
   int selectedChapterIndex = 0;
+  double _readingProgress = 0.0;
   double epubFontSize = 18.0;
   double epubHorizontalPadding = 18.0;
   double epubLineHeight = 1.5;
@@ -821,10 +823,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       chapterIndex: chapterIndex,
     );
 
-    final lastChapterIndex = widget.book.chapters.length - 1;
-    final percent = lastChapterIndex <= 0
-        ? 0
-        : ((chapterIndex / lastChapterIndex) * 100).round().clamp(0, 100);
+    final percent = (_currentReadingProgress() * 100).round().clamp(0, 100);
 
     await _storageService.saveEpubProgress(_epubStorageKey, percent);
   }
@@ -843,6 +842,10 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     if (mounted && selectedChapterIndex != chapterIndex) {
       setState(() {
         selectedChapterIndex = chapterIndex;
+        _readingProgress = _readingProgressForLocation((
+          index: chapterIndex,
+          alignment: alignment,
+        ));
       });
     }
 
@@ -876,6 +879,27 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
   int _currentVisibleChapterIndex() {
     return _currentVisibleChapterLocation().index;
+  }
+
+  double _currentReadingProgress() {
+    return _readingProgressForLocation(_currentVisibleChapterLocation());
+  }
+
+  double _readingProgressForLocation(({double alignment, int index}) location) {
+    final chapterCount = widget.book.chapters.length;
+    if (chapterCount <= 0) return 0;
+    if (chapterCount == 1) {
+      return _epubPositionInChapter(location.alignment).clamp(0, 1).toDouble();
+    }
+
+    final chapterIndex = location.index.clamp(0, chapterCount - 1);
+    final positionInChapter = _epubPositionInChapter(
+      location.alignment,
+    ).clamp(0, 1).toDouble();
+
+    return ((chapterIndex + positionInChapter) / chapterCount)
+        .clamp(0, 1)
+        .toDouble();
   }
 
   ({double alignment, int index}) _currentVisibleChapterLocation() {
@@ -914,11 +938,18 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   }
 
   void _handleVisibleChapterPositionsChanged() {
-    final chapterIndex = _currentVisibleChapterIndex();
+    final location = _currentVisibleChapterLocation();
+    final chapterIndex = location.index;
+    final readingProgress = _readingProgressForLocation(location);
+    final didProgressChange =
+        (readingProgress - _readingProgress).abs() >=
+        _readingProgressUpdateThreshold;
 
-    if (chapterIndex != selectedChapterIndex && mounted) {
+    if ((chapterIndex != selectedChapterIndex || didProgressChange) &&
+        mounted) {
       setState(() {
         selectedChapterIndex = chapterIndex;
+        _readingProgress = readingProgress;
       });
     }
 
@@ -1383,12 +1414,64 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     );
   }
 
+  Widget _buildReadingProgressBar() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final backgroundColor = _readingBackgroundColor(colorScheme);
+    final textColor = _readingTextColor(colorScheme);
+    final progress = _readingProgress.clamp(0.0, 1.0).toDouble();
+    final percent = (progress * 100).round().clamp(0, 100);
+    final chapterTitle = _currentChapterLabel();
+    final label = chapterTitle.trim().isEmpty
+        ? '$percent%'
+        : '$percent% · $chapterTitle';
+
+    return ColoredBox(
+      color: backgroundColor,
+      child: SafeArea(
+        top: false,
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 5),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: textColor.withValues(alpha: 0.72),
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(height: 3),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  minHeight: 3,
+                  value: progress,
+                  backgroundColor: textColor.withValues(alpha: 0.10),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    colorScheme.primary.withValues(alpha: 0.82),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: _buildEpubAppBar(),
       body: Column(
         children: [
+          _buildReadingProgressBar(),
           Expanded(child: _buildEpubContent()),
           _buildTranslationPanel(),
         ],
