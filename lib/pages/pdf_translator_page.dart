@@ -215,7 +215,12 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
 
       if (!mounted) return;
 
-      await addRecentDocument(path: path, type: 'epub');
+      await addRecentDocument(
+        path: path,
+        type: 'epub',
+        displayTitle: epubDisplayTitle(book, file.path),
+        author: book.author,
+      );
 
       if (!mounted) return;
 
@@ -238,9 +243,32 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
     return path.split(Platform.pathSeparator).last;
   }
 
+  String cleanDocumentTitleFromPath(String path) {
+    return cleanDocumentTitle(documentNameFromPath(path));
+  }
+
+  String cleanDocumentTitle(String name) {
+    final dotIndex = name.lastIndexOf('.');
+    final title = dotIndex > 0 ? name.substring(0, dotIndex) : name;
+    final cleaned = title
+        .replaceAll(RegExp(r'[_-]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    return cleaned.isEmpty ? name : cleaned;
+  }
+
+  String epubDisplayTitle(EpubBookData book, String path) {
+    return book.title == 'EPUB senza titolo'
+        ? cleanDocumentTitleFromPath(path)
+        : book.title;
+  }
+
   Future<void> addRecentDocument({
     required String path,
     required String type,
+    String? displayTitle,
+    String? author,
   }) async {
     await storageService.addRecentDocument(
       RecentDocument(
@@ -248,6 +276,8 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
         name: documentNameFromPath(path),
         type: type,
         openedAt: DateTime.now(),
+        displayTitle: displayTitle ?? cleanDocumentTitleFromPath(path),
+        author: author,
       ),
     );
 
@@ -324,6 +354,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
         documentType: 'pdf',
         createdAt: DateTime.now(),
         pageNumber: currentPage,
+        displayTitle: cleanDocumentTitleFromPath(file.path),
         positionLabel: 'Pagina $currentPage',
       ),
     );

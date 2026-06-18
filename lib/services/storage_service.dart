@@ -123,6 +123,8 @@ class StorageService {
           document.isPinned ||
           (existingDocument != null && existingDocument.isPinned),
       thumbnailPath: document.thumbnailPath ?? existingDocument?.thumbnailPath,
+      displayTitle: document.displayTitle ?? existingDocument?.displayTitle,
+      author: document.author ?? existingDocument?.author,
     );
     final updatedDocuments = [
       updatedDocument,

@@ -21,6 +21,8 @@ class _BookmarksPageState extends State<BookmarksPage> {
 
   List<BookmarkItem> _bookmarks = [];
   Map<String, String> _bookmarkThumbnailPaths = {};
+  Map<String, String> _bookmarkDisplayTitles = {};
+  Map<String, String> _bookmarkAuthors = {};
   bool _isLoading = true;
   bool _isOpeningDocument = false;
 
@@ -50,32 +52,87 @@ class _BookmarksPageState extends State<BookmarksPage> {
         if (_thumbnailPathExists(document.thumbnailPath))
           document.path: document.thumbnailPath!,
     };
+    final recentDisplayTitles = {
+      for (final document in recentDocuments)
+        if (document.displayTitle?.trim().isNotEmpty == true)
+          document.path: document.displayTitle!,
+    };
+    final recentAuthors = {
+      for (final document in recentDocuments)
+        if (document.author?.trim().isNotEmpty == true)
+          document.path: document.author!,
+    };
     final thumbnailPaths = <String, String>{};
+    final displayTitles = <String, String>{};
+    final authors = <String, String>{};
     final epubService = EpubService();
 
     for (final bookmark in bookmarks) {
       final bookmarkThumbnailPath = bookmark.thumbnailPath;
+      final bookmarkDisplayTitle = bookmark.displayTitle;
+      final bookmarkAuthor = bookmark.author;
+      final recentDisplayTitle = recentDisplayTitles[bookmark.documentPath];
+      final recentAuthor = recentAuthors[bookmark.documentPath];
+
+      if (bookmarkDisplayTitle?.trim().isNotEmpty == true) {
+        displayTitles[bookmark.id] = bookmarkDisplayTitle!;
+      } else if (recentDisplayTitle?.trim().isNotEmpty == true) {
+        displayTitles[bookmark.id] = recentDisplayTitle!;
+      }
+
+      if (bookmarkAuthor?.trim().isNotEmpty == true) {
+        authors[bookmark.id] = bookmarkAuthor!;
+      } else if (recentAuthor?.trim().isNotEmpty == true) {
+        authors[bookmark.id] = recentAuthor!;
+      }
 
       if (_thumbnailPathExists(bookmarkThumbnailPath)) {
         thumbnailPaths[bookmark.id] = bookmarkThumbnailPath!;
-        continue;
       }
 
       final recentThumbnailPath = recentThumbnailPaths[bookmark.documentPath];
 
-      if (_thumbnailPathExists(recentThumbnailPath)) {
+      if (!thumbnailPaths.containsKey(bookmark.id) &&
+          _thumbnailPathExists(recentThumbnailPath)) {
         thumbnailPaths[bookmark.id] = recentThumbnailPath!;
-        continue;
       }
 
-      if (bookmark.documentType.toLowerCase() != 'epub') continue;
+      final type = bookmark.documentType.toLowerCase();
 
-      final coverPath = await epubService.cacheCoverForFile(
-        File(bookmark.documentPath),
-      );
+      if (!thumbnailPaths.containsKey(bookmark.id) && type == 'epub') {
+        final coverPath = await epubService.cacheCoverForFile(
+          File(bookmark.documentPath),
+        );
 
-      if (_thumbnailPathExists(coverPath)) {
-        thumbnailPaths[bookmark.id] = coverPath!;
+        if (_thumbnailPathExists(coverPath)) {
+          thumbnailPaths[bookmark.id] = coverPath!;
+        }
+      }
+
+      if (!displayTitles.containsKey(bookmark.id)) {
+        if (type == 'epub') {
+          try {
+            final book = await epubService.readEpub(
+              File(bookmark.documentPath),
+            );
+            displayTitles[bookmark.id] = _epubDisplayTitle(
+              book,
+              bookmark.documentPath,
+            );
+
+            if (book.author?.trim().isNotEmpty == true) {
+              authors[bookmark.id] = book.author!;
+            }
+          } catch (_) {
+            displayTitles[bookmark.id] = _cleanDocumentTitle(
+              bookmark.documentName,
+            );
+          }
+        } else {
+          displayTitles[bookmark.id] = _cleanDocumentTitle(
+            bookmark.documentName,
+          );
+        }
       }
     }
 
@@ -83,6 +140,8 @@ class _BookmarksPageState extends State<BookmarksPage> {
 
     setState(() {
       _bookmarkThumbnailPaths = thumbnailPaths;
+      _bookmarkDisplayTitles = displayTitles;
+      _bookmarkAuthors = authors;
     });
   }
 
@@ -192,6 +251,27 @@ class _BookmarksPageState extends State<BookmarksPage> {
     return bookmark.documentType.toLowerCase() == 'pdf' ? 'PDF' : 'EPUB';
   }
 
+  String _cleanDocumentTitle(String name) {
+    final dotIndex = name.lastIndexOf('.');
+    final title = dotIndex > 0 ? name.substring(0, dotIndex) : name;
+    final cleaned = title
+        .replaceAll(RegExp(r'[_-]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    return cleaned.isEmpty ? name : cleaned;
+  }
+
+  String _cleanDocumentTitleFromPath(String path) {
+    return _cleanDocumentTitle(path.split(Platform.pathSeparator).last);
+  }
+
+  String _epubDisplayTitle(EpubBookData book, String path) {
+    return book.title == 'EPUB senza titolo'
+        ? _cleanDocumentTitleFromPath(path)
+        : book.title;
+  }
+
   Widget _buildEmptyState(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
@@ -239,6 +319,16 @@ class _BookmarksPageState extends State<BookmarksPage> {
   Widget _buildBookmarkCard(BuildContext context, BookmarkItem bookmark) {
     final colorScheme = Theme.of(context).colorScheme;
     final createdAt = _formatCreatedAt(bookmark.createdAt);
+    final displayTitle = bookmark.documentType.toLowerCase() == 'pdf'
+        ? _cleanDocumentTitle(
+            bookmark.displayTitle ??
+                _bookmarkDisplayTitles[bookmark.id] ??
+                bookmark.documentName,
+          )
+        : bookmark.displayTitle ??
+              _bookmarkDisplayTitles[bookmark.id] ??
+              _cleanDocumentTitle(bookmark.documentName);
+    final author = bookmark.author ?? _bookmarkAuthors[bookmark.id];
 
     return Card(
       elevation: 1.5,
@@ -255,8 +345,8 @@ class _BookmarksPageState extends State<BookmarksPage> {
               bookmark.thumbnailPath ?? _bookmarkThumbnailPaths[bookmark.id],
         ),
         title: Text(
-          bookmark.documentName,
-          maxLines: 1,
+          displayTitle,
+          maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(
             context,
@@ -267,6 +357,17 @@ class _BookmarksPageState extends State<BookmarksPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (author != null && author.isNotEmpty) ...[
+                Text(
+                  author,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ],
               Text(
                 bookmark.positionLabel.isNotEmpty
                     ? bookmark.positionLabel

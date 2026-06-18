@@ -5,6 +5,8 @@ class RecentDocument {
   final DateTime openedAt;
   final bool isPinned;
   final String? thumbnailPath;
+  final String? displayTitle;
+  final String? author;
 
   const RecentDocument({
     required this.path,
@@ -13,6 +15,8 @@ class RecentDocument {
     required this.openedAt,
     this.isPinned = false,
     this.thumbnailPath,
+    this.displayTitle,
+    this.author,
   });
 
   factory RecentDocument.fromJson(Map<String, dynamic> json) {
@@ -25,6 +29,8 @@ class RecentDocument {
           DateTime.fromMillisecondsSinceEpoch(0),
       isPinned: json['isPinned'] == true,
       thumbnailPath: _nullableStringFromJson(json['thumbnailPath']),
+      displayTitle: _nullableStringFromJson(json['displayTitle']),
+      author: _nullableStringFromJson(json['author']),
     );
   }
 
@@ -40,6 +46,8 @@ class RecentDocument {
     DateTime? openedAt,
     bool? isPinned,
     String? thumbnailPath,
+    String? displayTitle,
+    String? author,
   }) {
     return RecentDocument(
       path: path ?? this.path,
@@ -48,6 +56,8 @@ class RecentDocument {
       openedAt: openedAt ?? this.openedAt,
       isPinned: isPinned ?? this.isPinned,
       thumbnailPath: thumbnailPath ?? this.thumbnailPath,
+      displayTitle: displayTitle ?? this.displayTitle,
+      author: author ?? this.author,
     );
   }
 
@@ -59,6 +69,8 @@ class RecentDocument {
       'openedAt': openedAt.toIso8601String(),
       'isPinned': isPinned,
       'thumbnailPath': thumbnailPath,
+      'displayTitle': displayTitle,
+      'author': author,
     };
   }
 }

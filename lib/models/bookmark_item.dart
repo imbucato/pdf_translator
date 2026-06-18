@@ -10,6 +10,8 @@ class BookmarkItem {
   final double? epubAlignment;
   final double? epubPositionInChapter;
   final String? thumbnailPath;
+  final String? displayTitle;
+  final String? author;
   final String positionLabel;
 
   const BookmarkItem({
@@ -25,6 +27,8 @@ class BookmarkItem {
     this.epubAlignment,
     this.epubPositionInChapter,
     this.thumbnailPath,
+    this.displayTitle,
+    this.author,
   });
 
   factory BookmarkItem.fromJson(Map<String, dynamic> json) {
@@ -42,6 +46,8 @@ class BookmarkItem {
       epubAlignment: _doubleFromJson(json['epubAlignment']),
       epubPositionInChapter: _doubleFromJson(json['epubPositionInChapter']),
       thumbnailPath: _nullableStringFromJson(json['thumbnailPath']),
+      displayTitle: _nullableStringFromJson(json['displayTitle']),
+      author: _nullableStringFromJson(json['author']),
       positionLabel: json['positionLabel']?.toString() ?? '',
     );
   }
@@ -75,6 +81,8 @@ class BookmarkItem {
       'epubAlignment': epubAlignment,
       'epubPositionInChapter': epubPositionInChapter,
       'thumbnailPath': thumbnailPath,
+      'displayTitle': displayTitle,
+      'author': author,
       'positionLabel': positionLabel,
     };
   }

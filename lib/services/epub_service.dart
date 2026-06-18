@@ -13,10 +13,16 @@ class EpubChapterData {
 
 class EpubBookData {
   final String title;
+  final String? author;
   final List<EpubChapterData> chapters;
   final String? coverPath;
 
-  EpubBookData({required this.title, required this.chapters, this.coverPath});
+  EpubBookData({
+    required this.title,
+    required this.chapters,
+    this.author,
+    this.coverPath,
+  });
 }
 
 class EpubService {
@@ -26,7 +32,8 @@ class EpubService {
     final bytes = await file.readAsBytes();
     final book = await EpubReader.readBook(bytes);
 
-    final title = book.Title ?? 'EPUB senza titolo';
+    final title = _cleanMetadataValue(book.Title) ?? 'EPUB senza titolo';
+    final author = _cleanMetadataValue(book.Author);
     final coverPath = await _tryCacheCoverImage(file, book);
 
     final chapters = <EpubChapterData>[];
@@ -52,7 +59,17 @@ class EpubService {
 
     collectChapters(book.Chapters);
 
-    return EpubBookData(title: title, chapters: chapters, coverPath: coverPath);
+    return EpubBookData(
+      title: title,
+      author: author,
+      chapters: chapters,
+      coverPath: coverPath,
+    );
+  }
+
+  String? _cleanMetadataValue(String? value) {
+    final text = value?.replaceAll('\u0000', '').trim();
+    return text == null || text.isEmpty ? null : text;
   }
 
   Future<String?> cacheCoverForFile(File file) async {

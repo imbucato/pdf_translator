@@ -42,7 +42,7 @@ class _HomePageState extends State<HomePage> {
     });
 
     await _loadRecentPositionLabels(documents);
-    await _backfillRecentThumbnails(documents);
+    await _backfillRecentDocumentData(documents);
   }
 
   Future<void> _loadRecentPositionLabels(List<RecentDocument> documents) async {
@@ -59,28 +59,62 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  Future<void> _backfillRecentThumbnails(List<RecentDocument> documents) async {
+  Future<void> _backfillRecentDocumentData(
+    List<RecentDocument> documents,
+  ) async {
     var didUpdate = false;
     final updatedDocuments = <RecentDocument>[];
     final epubService = EpubService();
 
     for (final document in documents) {
-      if (document.type.toLowerCase() != 'epub' ||
-          _thumbnailPathExists(document.thumbnailPath)) {
+      final type = document.type.toLowerCase();
+      final hasThumbnail = _thumbnailPathExists(document.thumbnailPath);
+      final hasDisplayTitle = document.displayTitle?.trim().isNotEmpty == true;
+
+      if (type != 'epub') {
+        final displayTitle = _cleanDocumentTitle(
+          document.displayTitle ?? document.name,
+        );
+        final updatedDocument = document.copyWith(displayTitle: displayTitle);
+
         updatedDocuments.add(document);
+        if (updatedDocument.displayTitle != document.displayTitle) {
+          updatedDocuments[updatedDocuments.length - 1] = updatedDocument;
+          didUpdate = true;
+        }
         continue;
       }
 
       final file = File(document.path);
-      final thumbnailPath = await epubService.cacheCoverForFile(file);
+      var thumbnailPath = document.thumbnailPath;
+      var displayTitle = document.displayTitle;
+      var author = document.author;
 
-      if (thumbnailPath == null) {
-        updatedDocuments.add(document);
-        continue;
+      if (!hasThumbnail || !hasDisplayTitle) {
+        try {
+          final book = await epubService.readEpub(file);
+
+          thumbnailPath ??= book.coverPath;
+          displayTitle ??= _epubDisplayTitle(book, file.path);
+          author ??= book.author;
+        } catch (_) {
+          thumbnailPath ??= await epubService.cacheCoverForFile(file);
+          displayTitle ??= _cleanDocumentTitle(document.name);
+        }
       }
 
-      updatedDocuments.add(document.copyWith(thumbnailPath: thumbnailPath));
-      didUpdate = true;
+      final updatedDocument = document.copyWith(
+        thumbnailPath: thumbnailPath,
+        displayTitle: displayTitle,
+        author: author,
+      );
+
+      updatedDocuments.add(updatedDocument);
+      didUpdate =
+          didUpdate ||
+          updatedDocument.thumbnailPath != document.thumbnailPath ||
+          updatedDocument.displayTitle != document.displayTitle ||
+          updatedDocument.author != document.author;
     }
 
     if (!didUpdate) return;
@@ -212,7 +246,11 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _openPdf(File file) async {
-    await _addRecentDocument(path: file.path, type: 'pdf');
+    await _addRecentDocument(
+      path: file.path,
+      type: 'pdf',
+      displayTitle: _cleanDocumentTitleFromPath(file.path),
+    );
 
     if (!mounted) return;
 
@@ -242,6 +280,8 @@ class _HomePageState extends State<HomePage> {
         path: file.path,
         type: 'epub',
         thumbnailPath: book.coverPath,
+        displayTitle: _epubDisplayTitle(book, file.path),
+        author: book.author,
       );
 
       if (!mounted) return;
@@ -275,6 +315,8 @@ class _HomePageState extends State<HomePage> {
     required String path,
     required String type,
     String? thumbnailPath,
+    String? displayTitle,
+    String? author,
   }) async {
     await _storageService.addRecentDocument(
       RecentDocument(
@@ -283,12 +325,35 @@ class _HomePageState extends State<HomePage> {
         type: type,
         openedAt: DateTime.now(),
         thumbnailPath: thumbnailPath,
+        displayTitle: displayTitle,
+        author: author,
       ),
     );
   }
 
   String _documentNameFromPath(String path) {
     return path.split(Platform.pathSeparator).last;
+  }
+
+  String _cleanDocumentTitleFromPath(String path) {
+    return _cleanDocumentTitle(_documentNameFromPath(path));
+  }
+
+  String _cleanDocumentTitle(String name) {
+    final dotIndex = name.lastIndexOf('.');
+    final title = dotIndex > 0 ? name.substring(0, dotIndex) : name;
+    final cleaned = title
+        .replaceAll(RegExp(r'[_-]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    return cleaned.isEmpty ? name : cleaned;
+  }
+
+  String _epubDisplayTitle(EpubBookData book, String path) {
+    return book.title == 'EPUB senza titolo'
+        ? _cleanDocumentTitleFromPath(path)
+        : book.title;
   }
 
   void _showFileNotFound() {
@@ -649,6 +714,10 @@ class _HomePageState extends State<HomePage> {
     final typeLabel = isPdf ? 'PDF' : 'EPUB';
     final positionLabel = _recentPositionLabels[document.path] ?? typeLabel;
     final openedAt = _formatOpenedAt(document.openedAt);
+    final displayTitle = document.type.toLowerCase() == 'pdf'
+        ? _cleanDocumentTitle(document.displayTitle ?? document.name)
+        : document.displayTitle ?? _cleanDocumentTitle(document.name);
+    final author = document.author;
 
     return Card(
       elevation: 1.5,
@@ -668,8 +737,8 @@ class _HomePageState extends State<HomePage> {
           children: [
             Expanded(
               child: Text(
-                document.name,
-                maxLines: 1,
+                displayTitle,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(
                   context,
@@ -684,36 +753,55 @@ class _HomePageState extends State<HomePage> {
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 6),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  positionLabel,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              if (author != null && author.isNotEmpty) ...[
+                Text(
+                  author,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
                   ),
                 ),
-              ),
-              if (openedAt.isNotEmpty) ...[
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    openedAt,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
+                const SizedBox(height: 5),
+              ],
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      positionLabel,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                  if (openedAt.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        openedAt,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ],
           ),
         ),
