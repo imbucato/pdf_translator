@@ -249,6 +249,15 @@ class _HomePageState extends State<HomePage> {
     await _openDocumentPath(document.path);
   }
 
+  RecentDocument? get _continueReadingDocument {
+    if (_recentDocuments.isEmpty) return null;
+
+    return _recentDocuments.reduce(
+      (latest, document) =>
+          document.openedAt.isAfter(latest.openedAt) ? document : latest,
+    );
+  }
+
   Future<void> _removeRecentDocument(RecentDocument document) async {
     await _storageService.removeRecentDocument(document.path);
     await _loadRecentDocuments();
@@ -703,6 +712,111 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildInfoChip(BuildContext context, String label) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContinueReadingCard(BuildContext context) {
+    final document = _continueReadingDocument;
+
+    if (document == null) return const SizedBox.shrink();
+
+    final colorScheme = Theme.of(context).colorScheme;
+    final type = document.type.toLowerCase();
+    final typeLabel = type == 'pdf' ? 'PDF' : 'EPUB';
+    final positionLabel = _recentPositionLabels[document.path] ?? typeLabel;
+    final displayTitle = type == 'pdf'
+        ? _cleanDocumentTitle(document.displayTitle ?? document.name)
+        : document.displayTitle ?? _cleanDocumentTitle(document.name);
+    final author = document.author;
+
+    return Card(
+      elevation: 1.5,
+      shadowColor: colorScheme.shadow.withValues(alpha: 0.10),
+      margin: EdgeInsets.zero,
+      color: colorScheme.surfaceContainerLowest,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: _isOpeningDocument ? null : () => _openRecentDocument(document),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+          child: Row(
+            children: [
+              DocumentThumbnail(
+                documentType: document.type,
+                thumbnailPath: document.thumbnailPath,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Continua a leggere',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      displayTitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    if (author != null && author.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        author,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _buildInfoChip(context, typeLabel),
+                        _buildInfoChip(context, positionLabel),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmptyRecentDocuments(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
@@ -961,6 +1075,10 @@ class _HomePageState extends State<HomePage> {
                   _buildOpenDocumentAction(context),
                   const SizedBox(height: 12),
                   _buildBookmarksAction(context),
+                  if (_recentDocuments.isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    _buildContinueReadingCard(context),
+                  ],
                   const SizedBox(height: 28),
                   _buildRecentDocumentsSection(context),
                 ],
