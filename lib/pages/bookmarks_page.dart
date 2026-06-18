@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 
 import '../models/bookmark_item.dart';
 import '../services/epub_service.dart';
+import '../services/pdf_thumbnail_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/document_thumbnail.dart';
 import 'epub_reader_page.dart';
@@ -18,6 +20,7 @@ class BookmarksPage extends StatefulWidget {
 
 class _BookmarksPageState extends State<BookmarksPage> {
   final StorageService _storageService = StorageService();
+  final Set<String> _pendingPdfThumbnailPaths = {};
 
   List<BookmarkItem> _bookmarks = [];
   Map<String, String> _bookmarkThumbnailPaths = {};
@@ -99,6 +102,17 @@ class _BookmarksPageState extends State<BookmarksPage> {
 
       final type = bookmark.documentType.toLowerCase();
 
+      if (!thumbnailPaths.containsKey(bookmark.id) && type == 'pdf') {
+        final thumbnailPath = await PdfThumbnailService()
+            .cachedThumbnailPathForFile(File(bookmark.documentPath));
+
+        if (_thumbnailPathExists(thumbnailPath)) {
+          thumbnailPaths[bookmark.id] = thumbnailPath!;
+        } else {
+          _schedulePdfThumbnailGeneration(bookmark.documentPath);
+        }
+      }
+
       if (!thumbnailPaths.containsKey(bookmark.id) && type == 'epub') {
         final coverPath = await epubService.cacheCoverForFile(
           File(bookmark.documentPath),
@@ -147,6 +161,30 @@ class _BookmarksPageState extends State<BookmarksPage> {
 
   bool _thumbnailPathExists(String? path) {
     return path != null && path.isNotEmpty && File(path).existsSync();
+  }
+
+  void _schedulePdfThumbnailGeneration(String path) {
+    if (!_pendingPdfThumbnailPaths.add(path)) return;
+
+    unawaited(() async {
+      try {
+        final thumbnailPath = await PdfThumbnailService().cacheThumbnailForFile(
+          File(path),
+        );
+
+        if (thumbnailPath == null || !mounted) return;
+
+        setState(() {
+          _bookmarkThumbnailPaths = {
+            ..._bookmarkThumbnailPaths,
+            for (final bookmark in _bookmarks)
+              if (bookmark.documentPath == path) bookmark.id: thumbnailPath,
+          };
+        });
+      } finally {
+        _pendingPdfThumbnailPaths.remove(path);
+      }
+    }());
   }
 
   Future<void> _removeBookmark(BookmarkItem bookmark) async {

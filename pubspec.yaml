@@ -23,6 +23,8 @@ dependencies:
   epubx: ^4.0.0
   html_unescape: ^2.0.0
   scrollable_positioned_list: ^0.3.8
+  image: ^3.3.0
+  syncfusion_pdfviewer_platform_interface: ^33.2.12
   
 dev_dependencies:
   flutter_test:

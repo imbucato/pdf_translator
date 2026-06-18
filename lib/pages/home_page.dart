@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart' as fp;
@@ -5,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../models/recent_document.dart';
 import '../services/epub_service.dart';
+import '../services/pdf_thumbnail_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/document_thumbnail.dart';
 import 'bookmarks_page.dart';
@@ -21,6 +23,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final StorageService _storageService = StorageService();
+  final Set<String> _pendingPdfThumbnailPaths = {};
 
   List<RecentDocument> _recentDocuments = [];
   Map<String, String> _recentPositionLabels = {};
@@ -72,13 +75,27 @@ class _HomePageState extends State<HomePage> {
       final hasDisplayTitle = document.displayTitle?.trim().isNotEmpty == true;
 
       if (type != 'epub') {
+        var thumbnailPath = document.thumbnailPath;
+        if (!_thumbnailPathExists(thumbnailPath) && type == 'pdf') {
+          thumbnailPath = await PdfThumbnailService()
+              .cachedThumbnailPathForFile(File(document.path));
+
+          if (thumbnailPath == null) {
+            _schedulePdfThumbnailGeneration(document.path);
+          }
+        }
+
         final displayTitle = _cleanDocumentTitle(
           document.displayTitle ?? document.name,
         );
-        final updatedDocument = document.copyWith(displayTitle: displayTitle);
+        final updatedDocument = document.copyWith(
+          thumbnailPath: thumbnailPath,
+          displayTitle: displayTitle,
+        );
 
         updatedDocuments.add(document);
-        if (updatedDocument.displayTitle != document.displayTitle) {
+        if (updatedDocument.thumbnailPath != document.thumbnailPath ||
+            updatedDocument.displayTitle != document.displayTitle) {
           updatedDocuments[updatedDocuments.length - 1] = updatedDocument;
           didUpdate = true;
         }
@@ -130,6 +147,36 @@ class _HomePageState extends State<HomePage> {
 
   bool _thumbnailPathExists(String? path) {
     return path != null && path.isNotEmpty && File(path).existsSync();
+  }
+
+  void _schedulePdfThumbnailGeneration(String path) {
+    if (!_pendingPdfThumbnailPaths.add(path)) return;
+
+    unawaited(() async {
+      try {
+        final thumbnailPath = await PdfThumbnailService().cacheThumbnailForFile(
+          File(path),
+        );
+
+        if (thumbnailPath == null) return;
+
+        final documents = await _storageService.loadRecentDocuments();
+        final updatedDocuments = documents
+            .map(
+              (document) => document.path == path
+                  ? document.copyWith(thumbnailPath: thumbnailPath)
+                  : document,
+            )
+            .toList();
+
+        await _storageService.saveRecentDocuments(updatedDocuments);
+
+        if (!mounted) return;
+        await _loadRecentDocuments();
+      } finally {
+        _pendingPdfThumbnailPaths.remove(path);
+      }
+    }());
   }
 
   Future<String> _recentPositionLabel(RecentDocument document) async {

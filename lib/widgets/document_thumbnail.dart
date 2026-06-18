@@ -17,6 +17,7 @@ class DocumentThumbnail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final path = thumbnailPath;
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
 
     if (path != null && path.isNotEmpty && File(path).existsSync()) {
       return ClipRRect(
@@ -25,6 +26,8 @@ class DocumentThumbnail extends StatelessWidget {
           File(path),
           width: 44,
           height: 58,
+          cacheWidth: (44 * devicePixelRatio).round(),
+          cacheHeight: (58 * devicePixelRatio).round(),
           fit: BoxFit.cover,
           errorBuilder: (_, _, _) => _buildPlaceholder(context),
         ),
