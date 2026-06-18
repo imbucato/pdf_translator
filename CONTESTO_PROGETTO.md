@@ -1,14 +1,18 @@
 # AI Reader - CONTESTO_PROGETTO
 
-> File di contesto da allegare o incollare quando si apre una nuova chat di progetto.
+> File di contesto da allegare/incollare quando si apre una nuova chat di progetto.  
+> Aggiornato dopo il reset e il reinserimento controllato delle funzioni utili.
+
+---
 
 ## Nome e obiettivo
 
 **Nome app:** AI Reader  
-**Nome tecnico Flutter/package:** `pdf_translator`  
-**Target principale:** Android
+**Package Flutter:** `pdf_translator`  
+**Target principale:** Android  
+**Repository:** `https://github.com/imbucato/pdf_translator`
 
-AI Reader è una app Flutter per leggere documenti **PDF** ed **EPUB** e usare funzioni AI sul testo selezionato.
+AI Reader è una app Flutter per leggere **PDF** ed **EPUB** e usare funzioni AI sul testo selezionato.
 
 Funzioni AI principali:
 
@@ -22,11 +26,11 @@ Provider AI gestiti:
 - OpenAI
 - DeepSeek
 
-L'app è pensata per lettura, traduzione e approfondimento di libri/documenti, con storico dei risultati e ripresa della posizione di lettura.
+L’app è usata soprattutto per **lettura di piacere**, traduzione e approfondimento leggero. Non proporre come priorità funzioni da studio pesante, flashcard o ricerca avanzata.
 
 ---
 
-## Ambiente di sviluppo
+## Ambiente
 
 - Windows
 - Flutter
@@ -37,11 +41,23 @@ L'app è pensata per lettura, traduzione e approfondimento di libri/documenti, c
 Comandi ricorrenti:
 
 ```powershell
+git status
+flutter analyze
+flutter run
+```
+
+Build APK:
+
+```powershell
 flutter clean
 flutter pub get
-flutter run
+flutter analyze
 flutter build apk --release
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" uninstall com.example.pdf_translator
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" install build\app\outputs\flutter-apk\app-release.apk
 ```
+
+Nota importante: ogni volta che viene indicato `flutter build apk --release`, aggiungere sempre subito dopo anche i comandi per disinstallare e reinstallare l’APK.
 
 APK release:
 
@@ -49,11 +65,7 @@ APK release:
 build\app\outputs\flutter-apk\app-release.apk
 ```
 
-Se `adb` non è nel PATH:
-
-```powershell
-& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" install -r build\app\outputs\flutter-apk\app-release.apk
-```
+Su dispositivi vecchi, per esempio Lenovo M10, `flutter run` debug può essere molto lento. Per test prestazioni usare APK release installato manualmente.
 
 ---
 
@@ -69,18 +81,21 @@ lib/
     epub_reader_page.dart
     history_page.dart
     result_page.dart
+    bookmarks_page.dart
   services/
     ai_service.dart
     epub_service.dart
     storage_service.dart
     text_cleaner_service.dart
+    pdf_thumbnail_service.dart       # se presente
   widgets/
     translation_panel.dart
+    document_thumbnail.dart          # se presente
   models/
     history_item.dart
     recent_document.dart
+    bookmark_item.dart
 
-android/
 assets/
   icon/
     app_icon.png
@@ -88,57 +103,341 @@ assets/
 pubspec.yaml
 ```
 
+Controllare sempre il repository reale prima di proporre modifiche: alcuni file possono cambiare in base ai commit di Codex.
+
 ---
 
-## Funzioni implementate
+## Stato attuale stabile
 
-### Home
+Dopo un reset per problemi di prestazioni PDF, sono state reintrodotte solo le modifiche utili e più leggere.
 
-La Home è separata da PDF/EPUB.
+Funzioni attuali:
+
+- Home funzionante
+- Un solo pulsante principale **Apri**
+- PDF reader
+- EPUB reader ottimizzato
+- Pannello AI
+- Storico AI PDF/EPUB
+- Cache AI
+- Impostazioni
+- Icona/splash/tema
+- Recenti
+- Documenti fissati nei recenti
+- Segnalibri PDF/EPUB
+- Segnalibri multipli nello stesso capitolo EPUB
+- Copertine EPUB nei recenti e segnalibri
+- Titolo/autore nei recenti e segnalibri
+- Anteprime PDF leggere nei recenti e segnalibri
+- Barra avanzamento EPUB
+- Barra avanzamento PDF leggera
+- Card **Continua a leggere**
+
+Funzioni da non considerare presenti / da non riproporre ora:
+
+- Libreria completa separata
+- Home/catalogo pesante
+- Modalità lettura immersiva EPUB
+- Ricerca PDF/EPUB come priorità
+- Flashcard/modalità studio
+- Esportazione storico come priorità
+
+---
+
+## Home
+
+La Home è leggera e non deve diventare una libreria complessa.
 
 Funzioni:
 
-- Header grafico AI Reader
-- Apri documento PDF o EPUB
+- Header AI Reader
+- Un solo pulsante **Apri**
+- Card **Continua a leggere**
 - Ultimi documenti
-- Rimozione singolo documento recente
+- Documenti fissati in alto
+- Rimozione singolo recente
 - Svuota recenti
-- Tipo documento PDF/EPUB
+- Tipo PDF/EPUB
 - Progresso EPUB nei recenti
+- Copertine EPUB
+- Anteprime PDF leggere
+- Titolo/autore invece del filename
+- Accesso a Segnalibri
 - Info app
-- Accesso a Impostazioni
+- Impostazioni
 
-### PDF
+### Pulsante Apri
 
-- Apertura PDF
-- Ripristino posizione/pagina
-- Selezione testo
-- Pannello AI
-- Cronologia risultati
-- Cache AI
-- Apertura PDF/EPUB da reader
-- Barra strumenti semplificata senza titolo file
-- Back standard Android, senza pulsante Home ridondante
+Mantenere un solo pulsante:
+
+```text
+Apri
+```
+
+Non proporre due pulsanti separati PDF/EPUB.
+
+Il file picker apre PDF o EPUB e l’app riconosce il tipo da estensione.
+
+### Continua a leggere
+
+La card appare se esiste almeno un recente.
+
+Deve scegliere il documento **più recentemente aperto**, non semplicemente quello fissato.
+
+Mostra:
+
+- copertina EPUB o anteprima PDF se disponibile
+- placeholder se manca
+- `displayTitle` o fallback pulito
+- autore se disponibile
+- tipo PDF/EPUB
+- progresso EPUB se disponibile
+- pagina/progresso PDF se disponibile
+
+Tap:
+
+- apre il documento come i recenti
+- EPUB riprende posizione
+- PDF riprende pagina
+- se file assente: SnackBar gentile, niente crash
+
+---
+
+## Recenti e documenti fissati
+
+Nei recenti si possono fissare documenti.
+
+Regole:
+
+- fissati sempre in alto
+- fissati ordinati per apertura recente
+- non fissati sotto, ordinati per apertura recente
+- fissaggio persistente
+- svuotare recenti svuota anche fissati
+- segnalibri indipendenti dai recenti
+
+Campo probabile:
+
+```dart
+isPinned
+```
+
+Retrocompatibilità: se manca, default `false`.
+
+---
+
+## Titolo/autore e nomi puliti
+
+Nei recenti e segnalibri non mostrare come testo principale il filename grezzo.
 
 ### EPUB
 
-- Apertura EPUB
-- Lettura con tema chiaro/seppia/scuro
-- Slider dimensione carattere
-- Slider margini laterali
-- Interlinea regolabile
-- Navigazione indice capitoli
-- Salvataggio posizione
-- Progresso lettura nei recenti
+Estrarre dai metadati EPUB:
+
+- titolo
+- autore
+
+Fallback:
+
+- titolo = nome file pulito
+- autore assente = non mostrare riga autore
+
+### PDF
+
+Non usare metadati PDF pesanti.
+
+Per PDF:
+
+- titolo = nome file pulito
+- autore = null/vuoto
+- niente estrazione metadati pesante
+
+Esempi:
+
+```text
+Blue_Remembered_Earth.pdf -> Blue Remembered Earth
+relazione_finale_v2.pdf -> relazione finale v2
+```
+
+La UI deve usare:
+
+```text
+displayTitle se non vuoto
+altrimenti fallback pulito da name/path
+```
+
+---
+
+## Copertine EPUB e anteprime PDF leggere
+
+### EPUB
+
+- Estrarre copertina se disponibile
+- Salvare/cache in app directory
+- Non riestrarre inutilmente
+- Se manca: placeholder EPUB
+
+### PDF
+
+Le anteprime PDF devono essere **leggere**.
+
+Regole importanti:
+
+- non generare thumbnail PDF dentro `pdf_translator_page.dart`
+- non generare thumbnail durante apertura/scorrimento PDF
+- generare solo fuori dal reader, per Home/Segnalibri
+- se manca thumbnail: placeholder immediato
+- non rigenerare se esiste in cache
+- thumbnail piccola
+- salvare solo path/cache path, non byte in `SharedPreferences`
+- usare `cacheWidth`/`cacheHeight` se utile
+- se fallisce: placeholder, niente crash
+
+Questa parte è delicata per prestazioni su dispositivi vecchi.
+
+---
+
+## PDF reader
+
+Funzioni:
+
+- Apertura PDF
+- Ripristino pagina
 - Selezione testo
 - Pannello AI
-- Cronologia risultati
-- Cache AI
-- Titolo capitolo reale mostrato nel pannello/storico, non numero fittizio
-- Rendering ottimizzato/lazy per EPUB pesanti
-- Navigazione capitoli migliorata con `scrollable_positioned_list`
+- Storico/cache
+- Segnalibri PDF
+- Barra avanzamento PDF leggera
 
-### Pannello AI
+### Prestazioni PDF
+
+Regole assolute:
+
+- `SfPdfViewer` non deve essere ricostruito a ogni cambio pagina
+- evitare `setState()` frequenti nel parent che contiene `SfPdfViewer`
+- evitare generazione thumbnail nel reader
+- evitare estrazione metadati pesanti nel reader
+- evitare `FutureBuilder`/calcoli pesanti intorno al viewer
+- evitare chiavi dinamiche sul viewer
+
+### Barra avanzamento PDF leggera
+
+Mostra qualcosa tipo:
+
+```text
+Pagina 12 di 240 · 5%
+```
+
+Deve usare una soluzione leggera:
+
+- `ValueNotifier`
+- `ValueListenableBuilder`
+- widget separato equivalente
+
+`onPageChanged` aggiorna solo il notifier, non tutto il reader.
+
+Calcolo:
+
+```text
+progress = currentPage / totalPages
+```
+
+Clamp tra `0.0` e `1.0`.
+
+### Segnalibri PDF
+
+Più segnalibri per documento.
+
+Chiave logica:
+
+```text
+documentPath + pageNumber
+```
+
+Tap icona:
+
+- se pagina già segnalibrata: rimuovi
+- altrimenti: aggiungi
+
+---
+
+## EPUB reader
+
+Funzioni:
+
+- Apertura EPUB
+- Tema chiaro/seppia/scuro
+- Slider dimensione font
+- Slider margini laterali
+- Interlinea
+- Indice capitoli
+- Salvataggio posizione
+- Progresso lettura nei recenti
+- Barra avanzamento EPUB
+- Selezione testo
+- Pannello AI
+- Storico/cache
+- Titolo capitolo reale
+- Rendering lazy con `scrollable_positioned_list`
+- Segnalibri EPUB multipli
+- Copertina EPUB
+- Titolo/autore metadati
+
+### Ottimizzazione EPUB
+
+Non tornare mai a:
+
+```text
+SingleChildScrollView
+  SelectionArea
+    Column
+      tutti i capitoli
+```
+
+Questa vecchia struttura rendeva EPUB pesanti lentissimi.
+
+Usare rendering lazy e `scrollable_positioned_list`.
+
+Non usare `GlobalKey + ensureVisible` su capitoli non costruiti.
+
+### Barra avanzamento EPUB
+
+Mostra progresso complessivo 0–100%, eventualmente con titolo capitolo reale.
+
+Regole:
+
+- non appesantire scroll
+- non interferire con selezione testo
+- non interferire con pannello AI
+- clamp tra `0.0` e `1.0`
+- evitare `setState` troppo frequenti
+
+### Segnalibri EPUB
+
+Devono poter esistere più segnalibri nello stesso capitolo.
+
+Chiave logica:
+
+```text
+documentPath + chapterIndex + posizioneInterna
+```
+
+Campi probabili:
+
+```dart
+chapterIndex
+chapterTitle
+epubPositionInChapter
+epubPositionLabel
+```
+
+Vecchi segnalibri solo con `chapterIndex` devono continuare a funzionare.
+
+Nota pratica accettata: per aggiungere più segnalibri nello stesso capitolo può essere necessario toccare/interagire col testo per aggiornare la posizione interna.
+
+---
+
+## Pannello AI
 
 File:
 
@@ -146,23 +445,65 @@ File:
 lib/widgets/translation_panel.dart
 ```
 
-Stato:
+Funzioni:
 
-- Pulsanti AI compatti su una riga:
-  - Traduci
-  - Spiega
-  - Riassumi
-  - Vocab.
-- Icone colorate
-- Nessun pulsante generico “Azioni”
-- Risultato AI in card leggibile
-- Testo selezionato nascosto di default con toggle Mostra/Nascondi
+- Traduci
+- Spiega
+- Riassumi
+- Vocab.
 - Provider selector
-- Switch auto-traduzione
-- Apertura pagina risultato
+- Auto-traduzione
+- Risultato in card
+- Testo selezionato nascosto con toggle
+- Copia risultato/testo selezionato
 - Pulisci risultato/selezione
+- Apertura pagina risultato
 
-### Impostazioni app
+Attenzione: modifiche a `SelectionArea` e gesture sono delicate.
+
+---
+
+## Segnalibri
+
+Pagina:
+
+```text
+lib/pages/bookmarks_page.dart
+```
+
+Modello:
+
+```text
+lib/models/bookmark_item.dart
+```
+
+Funzioni:
+
+- Lista segnalibri PDF/EPUB
+- Ordinamento recente
+- Eliminazione singolo segnalibro
+- Apertura documento
+- PDF: ritorno pagina
+- EPUB: ritorno capitolo/posizione
+- Miniatura:
+  - copertina EPUB
+  - anteprima PDF leggera
+  - placeholder
+- Titolo/autore
+- Posizione leggibile
+
+I segnalibri sono separati da:
+
+- storico AI
+- cache AI
+- recenti
+- posizioni salvate
+
+Svuotare cache o recenti non cancella i segnalibri.
+
+---
+
+## Impostazioni
 
 File:
 
@@ -177,53 +518,6 @@ Funzioni:
 - Tema EPUB predefinito
 - Svuota cache AI
 - Info app
-
----
-
-## Grafica e identità
-
-Nome visibile:
-
-```text
-AI Reader
-```
-
-Identità:
-
-- Tema blu/viola coerente
-- Launcher icon personalizzata
-- Splash screen Android personalizzato
-- Home ridisegnata
-- AppBar coerenti
-- Pannello AI compatto e moderno
-
-Icona app:
-
-```text
-assets/icon/app_icon.png
-```
-
-Launcher icon generata con:
-
-```yaml
-dev_dependencies:
-  flutter_launcher_icons: ^0.11.0
-
-flutter_icons:
-  android: true
-  ios: false
-  image_path: "assets/icon/app_icon.png"
-  adaptive_icon_background: "#3F51B5"
-  adaptive_icon_foreground: "assets/icon/app_icon.png"
-```
-
-Comando:
-
-```powershell
-dart run flutter_launcher_icons:main
-```
-
-Nota: `flutter_launcher_icons >=0.14.0` creava conflitto con `epubx ^4.0.0` per la dipendenza `image`.
 
 ---
 
@@ -242,100 +536,25 @@ scrollable_positioned_list
 flutter_launcher_icons
 ```
 
----
+Verificare `pubspec.yaml` reale per eventuali dipendenze thumbnail PDF.
 
-## Ottimizzazione EPUB
+Evitare aggiornamenti massivi.
 
-### Problema iniziale
+Attenzione a:
 
-Su EPUB pesanti, soprattutto su dispositivi vecchi come Samsung M31:
-
-- apertura molto lenta
-- scroll scattoso/bloccato
-- primo frame circa 11 secondi
-
-Log rilevato:
-
-```text
-[EPUB PERF] chapters: 206, chars: 1460482
-[EPUB PERF] first frame: 11295 ms
-```
-
-### Causa
-
-Il reader costruiva tutto il libro insieme:
-
-```text
-SingleChildScrollView
-  SelectionArea
-    Column
-      tutti i capitoli
-```
-
-Questo creava 1,46 milioni di caratteri prima del primo frame.
-
-### Soluzione
-
-Rendering lazy per capitoli e poi navigazione con `scrollable_positioned_list`.
-
-Risultati dopo ottimizzazione:
-
-```text
-first frame: 1498 ms
-first frame: 425 ms
-first frame: 382 ms
-```
-
-Lo scroll è diventato molto più fluido.
-
-### Note importanti
-
-- Non tornare a `SingleChildScrollView + Column + tutti i capitoli`.
-- Con rendering lazy, non usare `GlobalKey + ensureVisible` su capitoli non costruiti.
-- I vecchi elementi di storico creati prima del cambio navigazione potevano non tornare al punto giusto.
-- Dopo cancellazione vecchio storico e creazione nuovi risultati, il ritorno ai punti dello storico funziona.
-- Lo storico ora mostra il titolo capitolo reale invece di “Capitolo X” basato sulla struttura EPUB.
+- `epubx`
+- `image`
+- `flutter_launcher_icons`
+- Syncfusion PDF viewer
+- librerie PDF thumbnail
 
 ---
 
-## Storico, cache, recenti
+## Problemi noti / soluzioni
 
-### Storico AI
+### Gradle/Kotlin cache
 
-Salva:
-
-- azione
-- provider
-- testo originale
-- risultato
-- documento
-- posizione/pagina/capitolo
-- per EPUB: usare titolo capitolo come label utente
-
-### Cache AI
-
-Usata per non ripetere richieste uguali.
-
-Svuotare cache non deve cancellare:
-
-- storico
-- recenti
-- posizioni salvate
-
-### Recenti
-
-- separati da storico/cache
-- rimozione singola
-- svuota recenti
-- progresso EPUB mostrato nei recenti
-
----
-
-## Problemi già risolti
-
-### Kotlin/Gradle cache
-
-Errore ricorrente:
+Errore:
 
 ```text
 Daemon compilation failed
@@ -350,104 +569,88 @@ kotlin.incremental=false
 kotlin.compiler.execution.strategy=in-process
 ```
 
-Eventuale opzione ulteriore:
+Eventuale:
 
 ```properties
 org.gradle.daemon=false
 ```
 
-### `adb` non riconosciuto
+### File Gradle/lint bloccato da Windows
 
-Usare:
+Errore:
+
+```text
+FileSystemException ... lint-cache ... jar: Impossibile accedere al file. Il file è utilizzato da un altro processo
+```
+
+Soluzione:
+
+```powershell
+cd android
+.\gradlew --stop
+cd ..
+taskkill /F /IM java.exe
+flutter clean
+```
+
+Se serve:
+
+```powershell
+Remove-Item -Recurse -Force build
+```
+
+### adb non riconosciuto
+
+Usare path completo:
 
 ```powershell
 & "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 ```
 
----
+### Modalità lettura immersiva EPUB
 
-## Stato attuale stabile
+Provata e scartata.
 
-Aree funzionanti:
+Problemi:
 
-- Home
-- PDF reader
-- EPUB reader ottimizzato
-- Pannello AI
-- Cronologia PDF/EPUB
-- Impostazioni app
-- Icona/splash/tema
-- APK release
+- AI non funzionava bene
+- difficile uscire
+- interferiva con selezione/controlli
 
-Commit importanti del percorso:
-
-- Aggiunge slider lettura EPUB e corregge menu
-- Migliora apertura e scorrimento EPUB
-- Migliora navigazione capitoli EPUB
-- Migliora etichette capitoli EPUB
-- Limita log prestazioni EPUB al debug
-- Aggiunge impostazioni app
+Non riproporla senza ripensarla da zero.
 
 ---
 
-## Attenzioni per modifiche future
+## Modifiche da evitare ora
 
-### EPUB
-
-Non proporre di tornare a:
-
-```text
-SingleChildScrollView + Column + tutti i capitoli
-```
-
-perché distrugge le prestazioni sugli EPUB grandi.
-
-Per navigazione capitoli usare logica basata su lista posizionabile/indice.
-
-### SelectionArea
-
-Evitare chiavi che forzano ricostruzione completa:
-
-```dart
-key: ValueKey(_selectionClearVersion)
-```
-
-Possono causare salti di posizione o rebuild pesanti.
-
-### Log performance
-
-I log `[EPUB PERF]` devono restare solo in debug mode con:
-
-```dart
-kDebugMode
-```
-
-### Dipendenze
-
-Evitare aggiornamenti massivi pacchetti senza motivo. Attenzione a:
-
-- `epubx`
-- `flutter_launcher_icons`
-- `image`
-- Syncfusion PDF viewer
+- Libreria completa
+- Home pesante tipo catalogo
+- ricerca testo come priorità
+- flashcard/modalità studio
+- export storico come priorità
+- modalità immersiva
+- anteprime PDF generate dentro il reader
+- metadati PDF pesanti
+- refactor massivi
 
 ---
 
-## Idee future possibili
+## Idee future sensate
 
-- Ricerca dentro EPUB
-- Ricerca dentro PDF
-- Preferiti/documenti fissati in alto
-- Note personali sul testo selezionato
-- Esportazione storico in TXT/Markdown
+Orientate a lettura di piacere:
+
 - Tema scuro completo app
-- Modalità studio/domande AI
-- Miglioramento gestione capitoli EPUB se emergono altri casi limite
-- Firma release Android più seria per distribuzione esterna
+- Piccoli miglioramenti Home, ma senza Libreria pesante
+- Font EPUB serif/sans
+- Allineamento testo EPUB
+- Preset margini/interlinea
+- Lettura ad alta voce / TTS
+- Backup impostazioni/recenti/segnalibri
+- Migliorare precisione segnalibri EPUB
 
 ---
 
-## Prompt da usare in nuova chat
+## Prompt per nuova chat
 
 ```text
 Sto continuando il progetto Flutter AI Reader.
@@ -455,5 +658,22 @@ Sto continuando il progetto Flutter AI Reader.
 Leggi il file CONTESTO_PROGETTO.md e usalo come contesto principale.
 Prima di proporre modifiche, considera lo stato attuale e le note tecniche.
 Non suggerire di tornare a SingleChildScrollView + Column per EPUB perché è stato ottimizzato con rendering lazy.
+Non proporre Libreria pesante come priorità: uso l’app soprattutto per pochi libri e lettura di piacere.
+Non proporre funzioni da studio/flashcard/ricerca come priorità.
+Per modifiche PDF, attenzione alle prestazioni su dispositivi vecchi: testare con APK release, non solo flutter run.
+Ogni volta che indichi flutter build apk --release, aggiungi subito dopo anche i comandi adb uninstall/install dell’APK.
 Procediamo sempre con modifiche mirate e commit frequenti.
+```
+
+---
+
+## Checklist APK
+
+```powershell
+flutter clean
+flutter pub get
+flutter analyze
+flutter build apk --release
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" uninstall com.example.pdf_translator
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" install build\app\outputs\flutter-apk\app-release.apk
 ```
