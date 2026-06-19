@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart' as fp;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../models/recent_document.dart';
+import '../services/document_import_service.dart';
 import '../services/epub_service.dart';
 import '../services/pdf_thumbnail_service.dart';
 import '../services/storage_service.dart';
@@ -23,6 +25,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final StorageService _storageService = StorageService();
+  final DocumentImportService _documentImportService = DocumentImportService();
   final Set<String> _pendingPdfThumbnailPaths = {};
 
   List<RecentDocument> _recentDocuments = [];
@@ -76,7 +79,10 @@ class _HomePageState extends State<HomePage> {
 
       if (type != 'epub') {
         var thumbnailPath = document.thumbnailPath;
-        if (!_thumbnailPathExists(thumbnailPath) && type == 'pdf') {
+        final fileExists = File(document.path).existsSync();
+        if (!_thumbnailPathExists(thumbnailPath) &&
+            type == 'pdf' &&
+            fileExists) {
           thumbnailPath = await PdfThumbnailService()
               .cachedThumbnailPathForFile(File(document.path));
 
@@ -106,6 +112,11 @@ class _HomePageState extends State<HomePage> {
       var thumbnailPath = document.thumbnailPath;
       var displayTitle = document.displayTitle;
       var author = document.author;
+
+      if (!file.existsSync()) {
+        updatedDocuments.add(document);
+        continue;
+      }
 
       if (!hasThumbnail || !hasDisplayTitle) {
         try {
@@ -242,11 +253,19 @@ class _HomePageState extends State<HomePage> {
 
     if (result == null || result.files.single.path == null) return;
 
-    await _openDocumentPath(result.files.single.path!);
+    final importedFile = await _documentImportService.importDocument(
+      result.files.single.path!,
+    );
+
+    await _openDocumentPath(importedFile.path);
   }
 
-  Future<void> _openRecentDocument(RecentDocument document) async {
-    await _openDocumentPath(document.path);
+  Future<void> _openRecentDocument(
+    RecentDocument document, {
+    String source = 'recenti',
+  }) async {
+    _debugLogDocumentOpen(source: source, document: document);
+    await _openDocumentPath(document.path, recentDocument: document);
   }
 
   RecentDocument? get _continueReadingDocument {
@@ -282,22 +301,128 @@ class _HomePageState extends State<HomePage> {
     ).showSnackBar(const SnackBar(content: Text('Elenco recenti svuotato')));
   }
 
-  Future<void> _openDocumentPath(String path) async {
-    final file = File(path);
+  Future<void> _openDocumentPath(
+    String path, {
+    RecentDocument? recentDocument,
+  }) async {
+    var effectivePath = path;
+    var file = File(effectivePath);
 
     if (!file.existsSync()) {
-      await _storageService.removeRecentDocument(path);
-      await _loadRecentDocuments();
-      _showFileNotFound();
+      await _handleMissingDocument(
+        effectivePath,
+        recentDocument: recentDocument,
+      );
       return;
     }
 
-    final extension = path.split('.').last.toLowerCase();
+    if (recentDocument != null &&
+        _documentImportService.looksTemporary(effectivePath)) {
+      final importedFile = await _documentImportService.importDocument(
+        effectivePath,
+      );
+
+      if (importedFile.path != effectivePath) {
+        final newPath = importedFile.path;
+        await _storageService.replaceDocumentPath(
+          oldPath: effectivePath,
+          newPath: newPath,
+          newName: _documentNameFromPath(newPath),
+        );
+        effectivePath = newPath;
+        file = importedFile;
+
+        if (mounted) {
+          await _loadRecentDocuments();
+        }
+      }
+    }
+
+    final extension = effectivePath.split('.').last.toLowerCase();
 
     if (extension == 'pdf') {
       await _openPdf(file);
     } else if (extension == 'epub') {
       await _openEpub(file);
+    }
+  }
+
+  void _debugLogDocumentOpen({
+    required String source,
+    required RecentDocument document,
+  }) {
+    if (!kDebugMode) return;
+
+    final path = document.path;
+    final normalizedPath = path.replaceAll('\\', '/').toLowerCase();
+    final title = document.displayTitle?.trim().isNotEmpty == true
+        ? document.displayTitle!.trim()
+        : document.name;
+
+    debugPrint(
+      '[AI_READER_DOC_OPEN][$source] title="$title" '
+      'path="$path" exists=${File(path).existsSync()} '
+      'cache=${normalizedPath.contains('/cache/')} '
+      'filePicker=${normalizedPath.contains('file_picker')} '
+      'dataUser0=${normalizedPath.contains('/data/user/0/')} '
+      'appPath=${normalizedPath.contains('pdf_translator')}',
+    );
+  }
+
+  Future<void> _handleMissingDocument(
+    String path, {
+    RecentDocument? recentDocument,
+  }) async {
+    if (!mounted) return;
+
+    final shouldRemove = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('File non trovato'),
+          content: const Text(
+            'Il documento potrebbe essere stato spostato, rinominato o eliminato.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Annulla'),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Rimuovi dalla lista'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldRemove != true) return;
+
+    try {
+      await _storageService.removeRecentDocument(path);
+      await _storageService.removeBookmarksForDocument(path);
+      await _loadRecentDocuments();
+
+      if (!mounted) return;
+
+      final documentName =
+          recentDocument?.displayTitle?.trim().isNotEmpty == true
+          ? recentDocument!.displayTitle!.trim()
+          : _cleanDocumentTitleFromPath(path);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$documentName rimosso dalla lista')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Non sono riuscito a rimuovere il riferimento.'),
+        ),
+      );
     }
   }
 
@@ -398,7 +523,11 @@ class _HomePageState extends State<HomePage> {
   String _cleanDocumentTitle(String name) {
     final dotIndex = name.lastIndexOf('.');
     final title = dotIndex > 0 ? name.substring(0, dotIndex) : name;
-    final cleaned = title
+    final titleWithoutImportSuffix = title.replaceFirst(
+      RegExp(r'[\s_-]*\d{10,}$'),
+      '',
+    );
+    final cleaned = titleWithoutImportSuffix
         .replaceAll(RegExp(r'[_-]+'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
@@ -410,14 +539,6 @@ class _HomePageState extends State<HomePage> {
     return book.title == 'EPUB senza titolo'
         ? _cleanDocumentTitleFromPath(path)
         : book.title;
-  }
-
-  void _showFileNotFound() {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('File non trovato')));
   }
 
   void _showAboutDialog() {
@@ -754,7 +875,9 @@ class _HomePageState extends State<HomePage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: _isOpeningDocument ? null : () => _openRecentDocument(document),
+        onTap: _isOpeningDocument
+            ? null
+            : () => _openRecentDocument(document, source: 'continua_a_leggere'),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
           child: Row(
@@ -1002,7 +1125,12 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
-        onTap: _isOpeningDocument ? null : () => _openRecentDocument(document),
+        onTap: _isOpeningDocument
+            ? null
+            : () => _openRecentDocument(
+                document,
+                source: document.isPinned ? 'fissati' : 'recenti',
+              ),
       ),
     );
   }

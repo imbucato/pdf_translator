@@ -11,6 +11,7 @@ import '../models/bookmark_item.dart';
 import '../models/history_item.dart';
 import '../models/recent_document.dart';
 import '../services/ai_service.dart';
+import '../services/document_import_service.dart';
 import '../services/epub_service.dart';
 import '../services/storage_service.dart';
 import '../services/text_cleaner_service.dart';
@@ -45,6 +46,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
   final AiService _aiService = AiService();
   final StorageService _storageService = StorageService();
+  final DocumentImportService _documentImportService = DocumentImportService();
   final ItemScrollController _itemScrollController = ItemScrollController();
   final ItemPositionsListener _itemPositionsListener =
       ItemPositionsListener.create();
@@ -344,7 +346,10 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
     if (result == null || result.files.single.path == null) return;
 
-    final path = result.files.single.path!;
+    final importedFile = await _documentImportService.importDocument(
+      result.files.single.path!,
+    );
+    final path = importedFile.path;
     final extension = path.split('.').last.toLowerCase();
 
     if (extension == 'epub') {

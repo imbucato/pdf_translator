@@ -83,6 +83,31 @@ class BookmarkItem {
     );
   }
 
+  BookmarkItem copyWithDocumentPath({
+    required String documentPath,
+    required String documentName,
+  }) {
+    return BookmarkItem(
+      id: id,
+      documentPath: documentPath,
+      documentName: documentName,
+      documentType: documentType,
+      createdAt: createdAt,
+      positionLabel: positionLabel,
+      pageNumber: pageNumber,
+      chapterIndex: chapterIndex,
+      chapterTitle: chapterTitle,
+      epubAlignment: epubAlignment,
+      epubPositionInChapter: epubPositionInChapter,
+      epubBookProgress: epubBookProgress,
+      epubChapterProgress: epubChapterProgress,
+      thumbnailPath: thumbnailPath,
+      displayTitle: displayTitle,
+      author: author,
+      note: note,
+    );
+  }
+
   static String? _nullableStringFromJson(Object? value) {
     final text = value?.toString().trim();
     return text == null || text.isEmpty ? null : text;

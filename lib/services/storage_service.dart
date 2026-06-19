@@ -174,6 +174,37 @@ class StorageService {
     );
   }
 
+  Future<void> replaceDocumentPath({
+    required String oldPath,
+    required String newPath,
+    required String newName,
+  }) async {
+    final documents = await loadRecentDocuments();
+    final updatedDocuments = documents
+        .map(
+          (document) => document.path == oldPath
+              ? document.copyWith(path: newPath, name: newName)
+              : document,
+        )
+        .toList();
+
+    await saveRecentDocuments(updatedDocuments);
+
+    final bookmarks = await getBookmarks();
+    final updatedBookmarks = bookmarks
+        .map(
+          (bookmark) => bookmark.documentPath == oldPath
+              ? bookmark.copyWithDocumentPath(
+                  documentPath: newPath,
+                  documentName: newName,
+                )
+              : bookmark,
+        )
+        .toList();
+
+    await saveBookmarks(updatedBookmarks);
+  }
+
   Future<void> clearRecentDocuments() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('recent_documents');
@@ -220,6 +251,13 @@ class StorageService {
   Future<void> removeBookmark(String id) async {
     final bookmarks = await getBookmarks();
     await saveBookmarks(bookmarks.where((item) => item.id != id).toList());
+  }
+
+  Future<void> removeBookmarksForDocument(String path) async {
+    final bookmarks = await getBookmarks();
+    await saveBookmarks(
+      bookmarks.where((bookmark) => bookmark.documentPath != path).toList(),
+    );
   }
 
   Future<void> updateBookmarkNote(String id, String? note) async {

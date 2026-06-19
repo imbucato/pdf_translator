@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../models/bookmark_item.dart';
+import '../services/document_import_service.dart';
 import '../services/epub_service.dart';
 import '../services/pdf_thumbnail_service.dart';
 import '../services/storage_service.dart';
@@ -20,6 +22,7 @@ class BookmarksPage extends StatefulWidget {
 
 class _BookmarksPageState extends State<BookmarksPage> {
   final StorageService _storageService = StorageService();
+  final DocumentImportService _documentImportService = DocumentImportService();
   final Set<String> _pendingPdfThumbnailPaths = {};
 
   List<BookmarkItem> _bookmarks = [];
@@ -199,24 +202,45 @@ class _BookmarksPageState extends State<BookmarksPage> {
   }
 
   Future<void> _openBookmark(BookmarkItem bookmark) async {
-    final file = File(bookmark.documentPath);
+    var effectiveBookmark = bookmark;
+    var file = File(effectiveBookmark.documentPath);
+
+    _debugLogBookmarkOpen(effectiveBookmark);
 
     if (!file.existsSync()) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('File non trovato')));
+      await _handleMissingBookmarkDocument(effectiveBookmark);
       return;
     }
 
-    if (bookmark.documentType == 'pdf') {
+    if (_documentImportService.looksTemporary(effectiveBookmark.documentPath)) {
+      final importedFile = await _documentImportService.importDocument(
+        effectiveBookmark.documentPath,
+      );
+
+      if (importedFile.path != effectiveBookmark.documentPath) {
+        final newName = _documentNameFromPath(importedFile.path);
+        await _storageService.replaceDocumentPath(
+          oldPath: effectiveBookmark.documentPath,
+          newPath: importedFile.path,
+          newName: newName,
+        );
+        effectiveBookmark = effectiveBookmark.copyWithDocumentPath(
+          documentPath: importedFile.path,
+          documentName: newName,
+        );
+        file = importedFile;
+      }
+    }
+
+    if (!mounted) return;
+
+    if (effectiveBookmark.documentType == 'pdf') {
       await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => PdfTranslatorPage(
-            initialPdfPath: bookmark.documentPath,
-            initialPageNumber: bookmark.pageNumber,
+            initialPdfPath: effectiveBookmark.documentPath,
+            initialPageNumber: effectiveBookmark.pageNumber,
           ),
         ),
       );
@@ -226,8 +250,76 @@ class _BookmarksPageState extends State<BookmarksPage> {
       return;
     }
 
-    if (bookmark.documentType == 'epub') {
-      await _openEpubBookmark(bookmark, file);
+    if (effectiveBookmark.documentType == 'epub') {
+      await _openEpubBookmark(effectiveBookmark, file);
+    }
+  }
+
+  void _debugLogBookmarkOpen(BookmarkItem bookmark) {
+    if (!kDebugMode) return;
+
+    final path = bookmark.documentPath;
+    final normalizedPath = path.replaceAll('\\', '/').toLowerCase();
+    final title = bookmark.displayTitle?.trim().isNotEmpty == true
+        ? bookmark.displayTitle!.trim()
+        : bookmark.documentName;
+
+    debugPrint(
+      '[AI_READER_DOC_OPEN][segnalibri] title="$title" '
+      'path="$path" exists=${File(path).existsSync()} '
+      'cache=${normalizedPath.contains('/cache/')} '
+      'filePicker=${normalizedPath.contains('file_picker')} '
+      'dataUser0=${normalizedPath.contains('/data/user/0/')} '
+      'appPath=${normalizedPath.contains('pdf_translator')}',
+    );
+  }
+
+  Future<void> _handleMissingBookmarkDocument(BookmarkItem bookmark) async {
+    if (!mounted) return;
+
+    final shouldRemove = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('File non trovato'),
+          content: const Text(
+            'Il documento potrebbe essere stato spostato, rinominato o eliminato.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Annulla'),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Rimuovi dalla lista'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldRemove != true) return;
+
+    try {
+      await _storageService.removeRecentDocument(bookmark.documentPath);
+      await _storageService.removeBookmarksForDocument(bookmark.documentPath);
+      await _loadBookmarks();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Documento rimosso dalla lista')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Non sono riuscito a rimuovere il riferimento.'),
+        ),
+      );
     }
   }
 
@@ -292,7 +384,11 @@ class _BookmarksPageState extends State<BookmarksPage> {
   String _cleanDocumentTitle(String name) {
     final dotIndex = name.lastIndexOf('.');
     final title = dotIndex > 0 ? name.substring(0, dotIndex) : name;
-    final cleaned = title
+    final titleWithoutImportSuffix = title.replaceFirst(
+      RegExp(r'[\s_-]*\d{10,}$'),
+      '',
+    );
+    final cleaned = titleWithoutImportSuffix
         .replaceAll(RegExp(r'[_-]+'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
@@ -302,6 +398,10 @@ class _BookmarksPageState extends State<BookmarksPage> {
 
   String _cleanDocumentTitleFromPath(String path) {
     return _cleanDocumentTitle(path.split(Platform.pathSeparator).last);
+  }
+
+  String _documentNameFromPath(String path) {
+    return path.split(Platform.pathSeparator).last;
   }
 
   String _epubDisplayTitle(EpubBookData book, String path) {

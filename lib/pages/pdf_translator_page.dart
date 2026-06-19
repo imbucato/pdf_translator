@@ -9,6 +9,7 @@ import '../models/bookmark_item.dart';
 import '../models/history_item.dart';
 import '../models/recent_document.dart';
 import '../services/ai_service.dart';
+import '../services/document_import_service.dart';
 import '../services/export_service.dart';
 import '../services/storage_service.dart';
 import 'result_page.dart';
@@ -39,6 +40,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   final PdfViewerController pdfController = PdfViewerController();
   final AiService aiService = AiService();
   final StorageService storageService = StorageService();
+  final DocumentImportService documentImportService = DocumentImportService();
   final ExportService exportService = ExportService();
   final ValueNotifier<_PdfProgressState> pdfProgressNotifier =
       ValueNotifier<_PdfProgressState>(const _PdfProgressState());
@@ -155,7 +157,11 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
 
     if (result == null || result.files.single.path == null) return;
 
-    await openPdfPath(result.files.single.path!);
+    final importedFile = await documentImportService.importDocument(
+      result.files.single.path!,
+    );
+
+    await openPdfPath(importedFile.path);
   }
 
   Future<void> pickEpub() async {
@@ -166,7 +172,11 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
 
     if (result == null || result.files.single.path == null) return;
 
-    await openEpubPath(result.files.single.path!);
+    final importedFile = await documentImportService.importDocument(
+      result.files.single.path!,
+    );
+
+    await openEpubPath(importedFile.path);
   }
 
   Future<void> pickDocument() async {
@@ -177,7 +187,10 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
 
     if (result == null || result.files.single.path == null) return;
 
-    final path = result.files.single.path!;
+    final importedFile = await documentImportService.importDocument(
+      result.files.single.path!,
+    );
+    final path = importedFile.path;
     final extension = path.split('.').last.toLowerCase();
 
     if (extension == 'pdf') {
@@ -255,7 +268,11 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   String cleanDocumentTitle(String name) {
     final dotIndex = name.lastIndexOf('.');
     final title = dotIndex > 0 ? name.substring(0, dotIndex) : name;
-    final cleaned = title
+    final titleWithoutImportSuffix = title.replaceFirst(
+      RegExp(r'[\s_-]*\d{10,}$'),
+      '',
+    );
+    final cleaned = titleWithoutImportSuffix
         .replaceAll(RegExp(r'[_-]+'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
@@ -290,7 +307,10 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   }
 
   Future<void> openRecentDocument(RecentDocument document) async {
-    if (!File(document.path).existsSync()) {
+    var path = document.path;
+    var file = File(path);
+
+    if (!file.existsSync()) {
       await storageService.removeRecentDocument(document.path);
       await loadRecentDocuments();
 
@@ -302,10 +322,25 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
       return;
     }
 
+    if (documentImportService.looksTemporary(path)) {
+      final importedFile = await documentImportService.importDocument(path);
+
+      if (importedFile.path != path) {
+        await storageService.replaceDocumentPath(
+          oldPath: path,
+          newPath: importedFile.path,
+          newName: documentNameFromPath(importedFile.path),
+        );
+        path = importedFile.path;
+        file = importedFile;
+        await loadRecentDocuments();
+      }
+    }
+
     if (document.type == 'pdf') {
-      await openPdfPath(document.path);
+      await openPdfPath(file.path);
     } else if (document.type == 'epub') {
-      await openEpubPath(document.path);
+      await openEpubPath(file.path);
     }
   }
 
