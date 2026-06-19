@@ -378,6 +378,72 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
     ).showSnackBar(const SnackBar(content: Text('Segnalibro aggiunto')));
   }
 
+  List<BookmarkItem> currentPdfBookmarks() {
+    final path = pdfFile?.path;
+    if (path == null) return [];
+
+    final currentBookmarks = bookmarks
+        .where(
+          (bookmark) =>
+              bookmark.documentType == 'pdf' &&
+              bookmark.documentPath == path &&
+              bookmark.pageNumber != null,
+        )
+        .toList();
+
+    currentBookmarks.sort(
+      (a, b) => (a.pageNumber ?? 0).compareTo(b.pageNumber ?? 0),
+    );
+
+    return currentBookmarks;
+  }
+
+  void showPdfBookmarks() {
+    final currentBookmarks = currentPdfBookmarks();
+
+    if (currentBookmarks.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nessun segnalibro salvato per questo PDF.'),
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (_) {
+        return SafeArea(
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: currentBookmarks.length,
+            itemBuilder: (context, index) {
+              final bookmark = currentBookmarks[index];
+              final pageNumber = bookmark.pageNumber ?? 1;
+
+              return ListTile(
+                leading: const Icon(Icons.bookmark_border),
+                title: Text('Pagina $pageNumber'),
+                onTap: () {
+                  Navigator.pop(context);
+
+                  setState(() {
+                    currentPage = pageNumber;
+                  });
+                  _updatePdfProgressNotifier();
+
+                  pdfController.jumpToPage(pageNumber);
+                  saveCurrentPage();
+                },
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
   String limitedSelectedText() {
     final text = TextCleanerService.normalizePdfText(selectedText);
 
@@ -891,6 +957,11 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
               onPressed: pdfFile == null ? null : toggleCurrentPdfBookmark,
             );
           },
+        ),
+        IconButton(
+          tooltip: 'Segnalibri PDF',
+          icon: const Icon(Icons.bookmarks_outlined),
+          onPressed: pdfFile == null ? null : showPdfBookmarks,
         ),
         IconButton(
           tooltip: 'Credito',

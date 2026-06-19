@@ -523,6 +523,102 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     ).showSnackBar(const SnackBar(content: Text('Segnalibro aggiunto')));
   }
 
+  List<BookmarkItem> _currentEpubBookmarks() {
+    final path = widget.documentPath;
+    if (path == null) return [];
+
+    final currentBookmarks = bookmarks
+        .where(
+          (bookmark) =>
+              bookmark.documentType == 'epub' &&
+              bookmark.documentPath == path &&
+              bookmark.chapterIndex != null,
+        )
+        .toList();
+
+    currentBookmarks.sort((a, b) {
+      final chapterCompare = (a.chapterIndex ?? 0).compareTo(
+        b.chapterIndex ?? 0,
+      );
+      if (chapterCompare != 0) return chapterCompare;
+
+      return (a.epubPositionInChapter ?? 0).compareTo(
+        b.epubPositionInChapter ?? 0,
+      );
+    });
+
+    return currentBookmarks;
+  }
+
+  String _epubBookmarkTitle(BookmarkItem bookmark) {
+    final chapterIndex = bookmark.chapterIndex ?? 0;
+    final savedTitle = bookmark.chapterTitle?.trim();
+
+    if (savedTitle != null && savedTitle.isNotEmpty) return savedTitle;
+
+    return _chapterLabelForIndex(chapterIndex);
+  }
+
+  String? _epubBookmarkSubtitle(BookmarkItem bookmark) {
+    final positionLabel = bookmark.positionLabel.trim();
+    final title = _epubBookmarkTitle(bookmark);
+
+    if (positionLabel.isNotEmpty && positionLabel != title) {
+      return positionLabel;
+    }
+
+    final position = bookmark.epubPositionInChapter;
+    if (position == null) return null;
+
+    return 'Posizione ${(position * 100).round().clamp(0, 100)}%';
+  }
+
+  void _showEpubBookmarks() {
+    final currentBookmarks = _currentEpubBookmarks();
+
+    if (currentBookmarks.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nessun segnalibro salvato per questo EPUB.'),
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (_) {
+        return SafeArea(
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: currentBookmarks.length,
+            itemBuilder: (context, index) {
+              final bookmark = currentBookmarks[index];
+              final chapterIndex = bookmark.chapterIndex ?? 0;
+              final alignment =
+                  bookmark.epubAlignment ??
+                  (bookmark.epubPositionInChapter == null
+                      ? 0.0
+                      : -bookmark.epubPositionInChapter!);
+              final subtitle = _epubBookmarkSubtitle(bookmark);
+
+              return ListTile(
+                leading: const Icon(Icons.bookmark_border),
+                title: Text(_epubBookmarkTitle(bookmark)),
+                subtitle: subtitle == null ? null : Text(subtitle),
+                onTap: () {
+                  Navigator.pop(context);
+                  _jumpToChapter(chapterIndex, alignment: alignment);
+                },
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
   String _limitedSelectedText() {
     final text = TextCleanerService.normalizePdfText(selectedText);
 
@@ -1380,6 +1476,11 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
           onPressed: widget.documentPath == null
               ? null
               : _toggleCurrentEpubBookmark,
+        ),
+        IconButton(
+          tooltip: 'Segnalibri EPUB',
+          icon: const Icon(Icons.bookmarks_outlined),
+          onPressed: widget.documentPath == null ? null : _showEpubBookmarks,
         ),
         IconButton(
           tooltip: 'Cronologia EPUB',
