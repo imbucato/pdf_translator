@@ -9,6 +9,8 @@ class BookmarkItem {
   final String? chapterTitle;
   final double? epubAlignment;
   final double? epubPositionInChapter;
+  final double? epubBookProgress;
+  final double? epubChapterProgress;
   final String? thumbnailPath;
   final String? displayTitle;
   final String? author;
@@ -26,6 +28,8 @@ class BookmarkItem {
     this.chapterTitle,
     this.epubAlignment,
     this.epubPositionInChapter,
+    this.epubBookProgress,
+    this.epubChapterProgress,
     this.thumbnailPath,
     this.displayTitle,
     this.author,
@@ -45,6 +49,8 @@ class BookmarkItem {
       chapterTitle: json['chapterTitle']?.toString(),
       epubAlignment: _doubleFromJson(json['epubAlignment']),
       epubPositionInChapter: _doubleFromJson(json['epubPositionInChapter']),
+      epubBookProgress: _doubleFromJson(json['epubBookProgress']),
+      epubChapterProgress: _doubleFromJson(json['epubChapterProgress']),
       thumbnailPath: _nullableStringFromJson(json['thumbnailPath']),
       displayTitle: _nullableStringFromJson(json['displayTitle']),
       author: _nullableStringFromJson(json['author']),
@@ -80,6 +86,8 @@ class BookmarkItem {
       'chapterTitle': chapterTitle,
       'epubAlignment': epubAlignment,
       'epubPositionInChapter': epubPositionInChapter,
+      'epubBookProgress': epubBookProgress,
+      'epubChapterProgress': epubChapterProgress,
       'thumbnailPath': thumbnailPath,
       'displayTitle': displayTitle,
       'author': author,

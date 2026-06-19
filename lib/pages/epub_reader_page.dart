@@ -498,7 +498,10 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     final location = _currentVisibleChapterLocation();
     final chapterIndex = location.index;
     final chapterTitle = _chapterLabelForIndex(chapterIndex);
-    final positionInChapter = _epubPositionInChapter(location.alignment);
+    final chapterProgress = _epubPositionInChapter(
+      location.alignment,
+    ).clamp(0, 1).toDouble();
+    final bookProgress = _readingProgressForLocation(location);
 
     await _storageService.addBookmark(
       BookmarkItem(
@@ -510,8 +513,13 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
         chapterIndex: chapterIndex,
         chapterTitle: chapterTitle,
         epubAlignment: location.alignment,
-        epubPositionInChapter: positionInChapter,
-        positionLabel: '$chapterTitle - punto salvato',
+        epubPositionInChapter: chapterProgress,
+        epubBookProgress: bookProgress,
+        epubChapterProgress: chapterProgress,
+        positionLabel: _epubBookmarkProgressLabel(
+          bookProgress: bookProgress,
+          chapterProgress: chapterProgress,
+        ),
       ),
     );
     await _loadBookmarks();
@@ -562,15 +570,93 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   String? _epubBookmarkSubtitle(BookmarkItem bookmark) {
     final positionLabel = bookmark.positionLabel.trim();
     final title = _epubBookmarkTitle(bookmark);
+    final bookProgress =
+        bookmark.epubBookProgress ?? _epubBookProgressForBookmark(bookmark);
+    final chapterProgress =
+        bookmark.epubChapterProgress ?? bookmark.epubPositionInChapter;
 
-    if (positionLabel.isNotEmpty && positionLabel != title) {
-      return positionLabel;
+    final progressLabel = _epubBookmarkProgressLabel(
+      bookProgress: bookProgress,
+      chapterProgress: chapterProgress,
+    );
+
+    if (progressLabel.isNotEmpty) return progressLabel;
+
+    if (positionLabel.isNotEmpty) {
+      return _cleanEpubBookmarkPositionLabel(positionLabel, title);
     }
 
-    final position = bookmark.epubPositionInChapter;
-    if (position == null) return null;
+    return 'Punto salvato';
+  }
 
-    return 'Posizione ${(position * 100).round().clamp(0, 100)}%';
+  double? _epubBookProgressForBookmark(BookmarkItem bookmark) {
+    final chapterIndex = bookmark.chapterIndex;
+    final chapterProgress = bookmark.epubPositionInChapter;
+
+    if (chapterIndex == null || chapterProgress == null) return null;
+
+    return _readingProgressForLocation((
+      index: chapterIndex,
+      alignment: -chapterProgress,
+    ));
+  }
+
+  String _epubBookmarkProgressLabel({
+    required double? bookProgress,
+    required double? chapterProgress,
+  }) {
+    final parts = <String>[];
+
+    if (bookProgress != null) {
+      parts.add('Libro ${_epubProgressPercent(bookProgress)}%');
+    }
+
+    if (chapterProgress != null) {
+      parts.add('Capitolo ${_epubProgressPercent(chapterProgress)}%');
+    }
+
+    return parts.join(' · ');
+  }
+
+  int _epubProgressPercent(double progress) {
+    return (progress.clamp(0, 1) * 100).round().clamp(0, 100);
+  }
+
+  String _cleanEpubBookmarkPositionLabel(String label, String chapterTitle) {
+    var cleanedLabel = label.trim();
+    final trimmedTitle = chapterTitle.trim();
+
+    if (trimmedTitle.isNotEmpty &&
+        cleanedLabel.toLowerCase().startsWith(trimmedTitle.toLowerCase())) {
+      cleanedLabel = cleanedLabel.substring(trimmedTitle.length).trim();
+      cleanedLabel = _trimLeadingBookmarkSeparators(cleanedLabel);
+    }
+
+    if (cleanedLabel.isEmpty ||
+        cleanedLabel.toLowerCase() == trimmedTitle.toLowerCase()) {
+      return 'Punto salvato';
+    }
+
+    if (cleanedLabel.toLowerCase() == 'punto salvato') {
+      return 'Punto salvato';
+    }
+
+    return cleanedLabel;
+  }
+
+  String _trimLeadingBookmarkSeparators(String value) {
+    var text = value.trim();
+
+    while (text.startsWith('-') ||
+        text.startsWith(':') ||
+        text.startsWith('.') ||
+        text.startsWith('·') ||
+        text.startsWith('–') ||
+        text.startsWith('—')) {
+      text = text.substring(1).trim();
+    }
+
+    return text;
   }
 
   void _showEpubBookmarks() {
