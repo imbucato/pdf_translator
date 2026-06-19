@@ -77,7 +77,7 @@ class StorageService {
 
   Future<String> loadEpubReadingTheme() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('epub_reading_theme') ?? 'light';
+    return prefs.getString('epub_reading_theme') ?? 'white';
   }
 
   Future<void> saveEpubReadingTheme(String value) async {

@@ -59,7 +59,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   double epubFontSize = 18.0;
   double epubHorizontalPadding = 18.0;
   double epubLineHeight = 1.5;
-  String epubReadingTheme = 'light';
+  String epubReadingTheme = 'white';
   String epubFontFamily = 'default';
   String epubTextAlign = 'left';
   String selectedText = '';
@@ -84,9 +84,10 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   static const double _maxEpubHorizontalPadding = 64.0;
   static const List<double> _epubLineHeightValues = [1.3, 1.5, 1.7, 1.9];
   static const List<String> _epubReadingThemeValues = [
-    'light',
-    'sepia',
-    'dark',
+    'white',
+    'paper',
+    'cream',
+    'softGray',
   ];
   static const List<String> _epubFontFamilyValues = [
     'default',
@@ -167,7 +168,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
           : 1.5;
       epubReadingTheme = _epubReadingThemeValues.contains(savedEpubReadingTheme)
           ? savedEpubReadingTheme
-          : 'light';
+          : 'white';
       epubFontFamily = _epubFontFamilyValues.contains(savedEpubFontFamily)
           ? savedEpubFontFamily
           : 'default';
@@ -1325,26 +1326,48 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
   Color _readingBackgroundColor(ColorScheme colorScheme) {
     switch (epubReadingTheme) {
-      case 'sepia':
-        return const Color(0xFFF4ECD8);
-      case 'dark':
-        return const Color(0xFF121212);
-      case 'light':
+      case 'paper':
+        return const Color(0xFFF7F1E3);
+      case 'cream':
+        return const Color(0xFFFFF4D6);
+      case 'softGray':
+        return const Color(0xFFECECEC);
+      case 'white':
       default:
-        return colorScheme.surface;
+        return const Color(0xFFFFFFFF);
     }
   }
 
   Color _readingTextColor(ColorScheme colorScheme) {
     switch (epubReadingTheme) {
-      case 'sepia':
-        return const Color(0xFF3B2F24);
-      case 'dark':
-        return const Color(0xFFEAEAEA);
-      case 'light':
+      case 'paper':
+        return const Color(0xFF2B2620);
+      case 'cream':
+        return const Color(0xFF2B2618);
+      case 'softGray':
+        return const Color(0xFF202124);
+      case 'white':
       default:
-        return colorScheme.onSurface;
+        return const Color(0xFF202124);
     }
+  }
+
+  String _epubReadingThemeLabel(String value) {
+    return switch (value) {
+      'paper' => 'Carta',
+      'cream' => 'Crema',
+      'softGray' => 'Grigio tenue',
+      _ => 'Bianco',
+    };
+  }
+
+  Color _epubReadingThemePreviewColor(String value) {
+    return switch (value) {
+      'paper' => const Color(0xFFF7F1E3),
+      'cream' => const Color(0xFFFFF4D6),
+      'softGray' => const Color(0xFFECECEC),
+      _ => const Color(0xFFFFFFFF),
+    };
   }
 
   String? _epubFontFamily() {
@@ -1412,6 +1435,36 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
                 selected: selected,
                 onSelected: (_) {
                   onSelected();
+                  setModalState(() {});
+                },
+              );
+            }
+
+            Widget readingThemeChip(String value) {
+              final previewColor = _epubReadingThemePreviewColor(value);
+
+              return ChoiceChip(
+                selected: epubReadingTheme == value,
+                label: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 16,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: previewColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(_epubReadingThemeLabel(value)),
+                  ],
+                ),
+                onSelected: (_) {
+                  _changeEpubReadingTheme(value);
                   setModalState(() {});
                 },
               );
@@ -1583,28 +1636,16 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Tema',
+                      'Sfondo pagina',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
+                      runSpacing: 8,
                       children: [
-                        optionChip(
-                          label: 'Chiaro',
-                          selected: epubReadingTheme == 'light',
-                          onSelected: () => _changeEpubReadingTheme('light'),
-                        ),
-                        optionChip(
-                          label: 'Seppia',
-                          selected: epubReadingTheme == 'sepia',
-                          onSelected: () => _changeEpubReadingTheme('sepia'),
-                        ),
-                        optionChip(
-                          label: 'Scuro',
-                          selected: epubReadingTheme == 'dark',
-                          onSelected: () => _changeEpubReadingTheme('dark'),
-                        ),
+                        for (final value in _epubReadingThemeValues)
+                          readingThemeChip(value),
                       ],
                     ),
                   ],
