@@ -15,6 +15,7 @@ import '../services/epub_service.dart';
 import '../services/storage_service.dart';
 import '../services/text_cleaner_service.dart';
 import '../widgets/translation_panel.dart';
+import 'bookmark_note_editor_page.dart';
 import 'history_page.dart';
 import 'home_page.dart';
 import 'pdf_translator_page.dart';
@@ -668,7 +669,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     return text;
   }
 
-  void _showEpubBookmarks() {
+  Future<void> _showEpubBookmarks() async {
     final currentBookmarks = _currentEpubBookmarks();
 
     if (currentBookmarks.isEmpty) {
@@ -680,10 +681,10 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       return;
     }
 
-    showModalBottomSheet(
+    final bookmarkToEdit = await showModalBottomSheet<BookmarkItem>(
       context: context,
       showDragHandle: true,
-      builder: (_) {
+      builder: (sheetContext) {
         return SafeArea(
           child: ListView.builder(
             shrinkWrap: true,
@@ -697,13 +698,27 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
                       ? 0.0
                       : -bookmark.epubPositionInChapter!);
               final subtitle = _epubBookmarkSubtitle(bookmark);
+              final note = bookmark.note?.trim();
 
               return ListTile(
                 leading: const Icon(Icons.bookmark_border),
                 title: Text(_epubBookmarkTitle(bookmark)),
-                subtitle: subtitle == null ? null : Text(subtitle),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (subtitle != null) Text(subtitle),
+                    if (note != null && note.isNotEmpty)
+                      Text(note, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  ],
+                ),
+                trailing: IconButton(
+                  tooltip: 'Modifica nota',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => Navigator.of(sheetContext).pop(bookmark),
+                ),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.of(sheetContext).pop();
                   _jumpToChapter(chapterIndex, alignment: alignment);
                 },
               );
@@ -712,6 +727,36 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
         );
       },
     );
+
+    if (bookmarkToEdit == null) return;
+    if (!mounted) return;
+
+    await _openBookmarkNoteEditor(bookmarkToEdit);
+  }
+
+  Future<void> _openBookmarkNoteEditor(BookmarkItem bookmark) async {
+    final note = await Navigator.push<String?>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BookmarkNoteEditorPage(
+          initialNote: bookmark.note ?? '',
+          bookmarkTitle: _epubBookmarkTitle(bookmark),
+          bookmarkSubtitle: _epubBookmarkSubtitle(bookmark),
+        ),
+      ),
+    );
+
+    if (note == null) return;
+    if (!mounted) return;
+
+    await _storageService.updateBookmarkNote(bookmark.id, note);
+    await _loadBookmarks();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Nota salvata')));
   }
 
   String _limitedSelectedText() {

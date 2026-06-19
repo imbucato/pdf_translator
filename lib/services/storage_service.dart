@@ -222,6 +222,24 @@ class StorageService {
     await saveBookmarks(bookmarks.where((item) => item.id != id).toList());
   }
 
+  Future<void> updateBookmarkNote(String id, String? note) async {
+    final cleanedNote = note?.trim();
+    final bookmarks = await getBookmarks();
+    final updatedBookmarks = bookmarks
+        .map(
+          (bookmark) => bookmark.id == id
+              ? bookmark.copyWithNote(
+                  cleanedNote == null || cleanedNote.isEmpty
+                      ? null
+                      : cleanedNote,
+                )
+              : bookmark,
+        )
+        .toList();
+
+    await saveBookmarks(updatedBookmarks);
+  }
+
   Future<bool> isBookmarked({
     required String documentPath,
     required String documentType,

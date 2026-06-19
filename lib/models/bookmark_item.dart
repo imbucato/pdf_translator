@@ -14,6 +14,7 @@ class BookmarkItem {
   final String? thumbnailPath;
   final String? displayTitle;
   final String? author;
+  final String? note;
   final String positionLabel;
 
   const BookmarkItem({
@@ -33,6 +34,7 @@ class BookmarkItem {
     this.thumbnailPath,
     this.displayTitle,
     this.author,
+    this.note,
   });
 
   factory BookmarkItem.fromJson(Map<String, dynamic> json) {
@@ -54,7 +56,30 @@ class BookmarkItem {
       thumbnailPath: _nullableStringFromJson(json['thumbnailPath']),
       displayTitle: _nullableStringFromJson(json['displayTitle']),
       author: _nullableStringFromJson(json['author']),
+      note: _nullableStringFromJson(json['note']),
       positionLabel: json['positionLabel']?.toString() ?? '',
+    );
+  }
+
+  BookmarkItem copyWithNote(String? note) {
+    return BookmarkItem(
+      id: id,
+      documentPath: documentPath,
+      documentName: documentName,
+      documentType: documentType,
+      createdAt: createdAt,
+      positionLabel: positionLabel,
+      pageNumber: pageNumber,
+      chapterIndex: chapterIndex,
+      chapterTitle: chapterTitle,
+      epubAlignment: epubAlignment,
+      epubPositionInChapter: epubPositionInChapter,
+      epubBookProgress: epubBookProgress,
+      epubChapterProgress: epubChapterProgress,
+      thumbnailPath: thumbnailPath,
+      displayTitle: displayTitle,
+      author: author,
+      note: note,
     );
   }
 
@@ -91,6 +116,7 @@ class BookmarkItem {
       'thumbnailPath': thumbnailPath,
       'displayTitle': displayTitle,
       'author': author,
+      'note': note,
       'positionLabel': positionLabel,
     };
   }

@@ -14,6 +14,7 @@ import '../services/storage_service.dart';
 import 'result_page.dart';
 import '../services/text_cleaner_service.dart';
 import '../widgets/translation_panel.dart';
+import 'bookmark_note_editor_page.dart';
 import 'history_page.dart';
 import 'home_page.dart';
 
@@ -398,7 +399,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
     return currentBookmarks;
   }
 
-  void showPdfBookmarks() {
+  Future<void> showPdfBookmarks() async {
     final currentBookmarks = currentPdfBookmarks();
 
     if (currentBookmarks.isEmpty) {
@@ -410,10 +411,10 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
       return;
     }
 
-    showModalBottomSheet(
+    final bookmarkToEdit = await showModalBottomSheet<BookmarkItem>(
       context: context,
       showDragHandle: true,
-      builder: (_) {
+      builder: (sheetContext) {
         return SafeArea(
           child: ListView.builder(
             shrinkWrap: true,
@@ -421,12 +422,21 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
             itemBuilder: (context, index) {
               final bookmark = currentBookmarks[index];
               final pageNumber = bookmark.pageNumber ?? 1;
+              final note = bookmark.note?.trim();
 
               return ListTile(
                 leading: const Icon(Icons.bookmark_border),
                 title: Text('Pagina $pageNumber'),
+                subtitle: note == null || note.isEmpty
+                    ? null
+                    : Text(note, maxLines: 2, overflow: TextOverflow.ellipsis),
+                trailing: IconButton(
+                  tooltip: 'Modifica nota',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => Navigator.of(sheetContext).pop(bookmark),
+                ),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.of(sheetContext).pop();
 
                   setState(() {
                     currentPage = pageNumber;
@@ -442,6 +452,35 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
         );
       },
     );
+
+    if (bookmarkToEdit == null) return;
+    if (!mounted) return;
+
+    await _openBookmarkNoteEditor(bookmarkToEdit);
+  }
+
+  Future<void> _openBookmarkNoteEditor(BookmarkItem bookmark) async {
+    final note = await Navigator.push<String?>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BookmarkNoteEditorPage(
+          initialNote: bookmark.note ?? '',
+          bookmarkTitle: 'Pagina ${bookmark.pageNumber ?? 1}',
+        ),
+      ),
+    );
+
+    if (note == null) return;
+    if (!mounted) return;
+
+    await storageService.updateBookmarkNote(bookmark.id, note);
+    await loadBookmarks();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Nota salvata')));
   }
 
   String limitedSelectedText() {
