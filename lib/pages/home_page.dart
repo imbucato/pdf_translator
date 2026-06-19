@@ -14,6 +14,7 @@ import '../services/text_cleaner_service.dart';
 import '../widgets/document_thumbnail.dart';
 import 'bookmarks_page.dart';
 import 'epub_reader_page.dart';
+import 'imported_documents_page.dart';
 import 'pdf_translator_page.dart';
 import 'settings_page.dart';
 
@@ -617,6 +618,17 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<void> _openImportedDocuments() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ImportedDocumentsPage()),
+    );
+
+    if (!mounted) return;
+
+    await _loadRecentDocuments();
+  }
+
   String _formatOpenedAt(DateTime openedAt) {
     if (openedAt.millisecondsSinceEpoch == 0) return '';
 
@@ -660,6 +672,12 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 const Spacer(),
+                IconButton.filledTonal(
+                  tooltip: 'Documenti importati',
+                  icon: const Icon(Icons.inventory_2_outlined),
+                  onPressed: _openImportedDocuments,
+                ),
+                const SizedBox(width: 8),
                 IconButton.filledTonal(
                   tooltip: 'Impostazioni',
                   icon: const Icon(Icons.settings),

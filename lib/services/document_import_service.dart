@@ -6,6 +6,50 @@ import 'package:path_provider/path_provider.dart';
 class DocumentImportService {
   static const String documentsFolderName = 'ai_reader_documents';
 
+  Future<Directory> persistentDocumentsDirectory() async {
+    return _persistentDocumentsDirectory();
+  }
+
+  Future<List<File>> importedDocuments() async {
+    final documentsDirectory = await _persistentDocumentsDirectory();
+    final files =
+        documentsDirectory.listSync().whereType<File>().where((file) {
+          final extension = _extensionFromPath(file.path);
+
+          return extension == 'pdf' || extension == 'epub';
+        }).toList()..sort(
+          (a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()),
+        );
+
+    if (kDebugMode) {
+      final totalBytes = files.fold<int>(
+        0,
+        (total, file) => total + file.lengthSync(),
+      );
+      debugPrint(
+        '[AI_READER_IMPORTED_DOCS] count=${files.length} totalBytes=$totalBytes '
+        'directory="${documentsDirectory.path}"',
+      );
+    }
+
+    return files;
+  }
+
+  Future<bool> deleteImportedDocument(String path) async {
+    if (!await isInPersistentDocuments(path)) return false;
+
+    final file = File(path);
+    if (!file.existsSync()) return false;
+
+    await file.delete();
+
+    if (kDebugMode) {
+      debugPrint('[AI_READER_IMPORTED_DOC_DELETE] path="$path" deleted=true');
+    }
+
+    return true;
+  }
+
   Future<File> importDocument(String sourcePath) async {
     final sourceFile = File(sourcePath);
 
@@ -96,6 +140,13 @@ class DocumentImportService {
     final parts = path.split(RegExp(r'[\\/]'));
 
     return parts.isEmpty ? 'document' : parts.last;
+  }
+
+  String _extensionFromPath(String path) {
+    final fileName = _fileNameFromPath(path);
+    final dotIndex = fileName.lastIndexOf('.');
+
+    return dotIndex < 0 ? '' : fileName.substring(dotIndex + 1).toLowerCase();
   }
 
   String _cleanFileName(String fileName) {

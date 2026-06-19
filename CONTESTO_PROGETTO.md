@@ -144,6 +144,56 @@ Funzioni da non considerare presenti / da non riproporre ora:
 
 ---
 
+## Aggiornamento recente: archivio interno, segnalibri e lettura EPUB
+
+Stato aggiornato dopo le ultime modifiche:
+
+- L'app AI Reader importa i PDF/EPUB aperti tramite file picker in una cartella interna persistente dell'app:
+
+```text
+app_flutter/ai_reader_documents
+```
+
+- I recenti, il progresso, i segnalibri e le note devono usare il path persistente interno, non la cache temporanea di `file_picker`.
+- I vecchi documenti che puntano a `/cache/file_picker/...` vengono migrati alla cartella persistente quando vengono riaperti, se il file cache esiste ancora.
+- Dopo la migrazione il secondo open usa direttamente il path persistente, con log import `alreadyPersistent=true`.
+- La gestione dei documenti mancanti/non disponibili mostra una UI gentile e permette di rimuovere riferimenti interni senza cancellare file esterni.
+- La Home ha un accesso discreto alla pagina **Documenti importati** / **Archivio documenti**.
+- La pagina **Documenti importati**:
+  - mostra i file presenti in `ai_reader_documents`
+  - mostra tipo PDF/EPUB
+  - mostra dimensione file e spazio totale usato
+  - permette apertura del documento
+  - permette eliminazione della copia interna con conferma
+  - elimina solo file dentro la cartella interna sicura
+  - rimuove riferimenti collegati: recenti, fissati, progresso, segnalibri e note se associati al path
+- I titoli PDF importati vengono puliti rimuovendo dal titolo visualizzato il suffisso timestamp tecnico, senza rinominare il file fisico.
+- Sono stati aggiunti sfondi pagina EPUB: Bianco, Carta, Crema, Grigio tenue, con colore testo leggibile.
+- Sono stati aggiunti altri font EPUB di sistema, inclusi Arial, Times, Comic, Corsivo, Sottile e Serif Mono.
+- I segnalibri EPUB mostrano sia percentuale libro sia percentuale capitolo.
+- I segnalibri PDF/EPUB possono avere note testuali opzionali.
+- L'editor nota e' una pagina separata, non un dialog/bottom sheet, per evitare errori con tastiera e build scope.
+- La grafica dell'editor note e' stata rifinita.
+- Esiste una lista segnalibri nel reader PDF e nel reader EPUB accessibile dalla AppBar.
+
+Non proporre:
+
+- TTS / lettura ad alta voce
+- tema scuro completo
+- Libreria pesante
+
+Vincoli tecnici da mantenere:
+
+- Non modificare il rendering lazy EPUB.
+- Non tornare mai a `SingleChildScrollView + Column` per EPUB.
+- Non usare `GlobalKey + ensureVisible` su capitoli non costruiti.
+- Non toccare PDF thumbnail/anteprime se non strettamente necessario.
+- I log debug tipo `[AI_READER_DOC_OPEN]`, `[AI_READER_DOC_IMPORT]`, `[AI_READER_IMPORTED_DOCS]`, `[AI_READER_IMPORTED_DOC_DELETE]`, `[EPUB PERF]` sono ammessi solo in `kDebugMode`.
+
+Nota build importante: quando viene indicato `flutter build apk --release`, subito dopo bisogna fornire anche i comandi per disinstallare e reinstallare l'APK sul dispositivo Android.
+
+---
+
 ## Home
 
 La Home è leggera e non deve diventare una libreria complessa.

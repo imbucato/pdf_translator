@@ -375,6 +375,11 @@ class StorageService {
     await prefs.setInt(pdfStorageKey, currentPage);
   }
 
+  Future<void> removeSavedPage(String pdfStorageKey) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(pdfStorageKey);
+  }
+
   String makeEpubStorageKey(String title) {
     final normalizedTitle = title.trim().toLowerCase();
 
@@ -426,6 +431,14 @@ class StorageService {
     final clampedPercent = percent.clamp(0, 100);
 
     await prefs.setInt(_epubProgressKey(epubStorageKey), clampedPercent);
+  }
+
+  Future<void> removeEpubReadingPosition(String epubStorageKey) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.remove(epubStorageKey);
+    await prefs.remove(_epubProgressKey(epubStorageKey));
+    await prefs.remove(_epubChapterIndexKey(epubStorageKey));
   }
 
   Future<void> saveEpubScrollOffset({
