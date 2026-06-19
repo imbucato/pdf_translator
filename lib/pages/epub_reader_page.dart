@@ -89,8 +89,17 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   ];
   static const List<String> _epubFontFamilyValues = [
     'default',
-    'serif',
     'sans',
+    'serif',
+    'monospace',
+    'condensed',
+    'light',
+    'arial',
+    'times',
+    'comic',
+    'cursive',
+    'thin',
+    'serifMono',
   ];
   static const List<String> _epubTextAlignValues = ['left', 'justify'];
 
@@ -1295,9 +1304,35 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
   String? _epubFontFamily() {
     return switch (epubFontFamily) {
-      'serif' => 'serif',
       'sans' => 'sans-serif',
+      'serif' => 'serif',
+      'monospace' => 'monospace',
+      'condensed' => 'sans-serif-condensed',
+      'light' => 'sans-serif-light',
+      'arial' => 'sans-serif',
+      'times' => 'serif',
+      'comic' => 'casual',
+      'cursive' => 'cursive',
+      'thin' => 'sans-serif-thin',
+      'serifMono' => 'serif-monospace',
       _ => null,
+    };
+  }
+
+  String _epubFontFamilyLabel(String value) {
+    return switch (value) {
+      'sans' => 'Sans',
+      'serif' => 'Serif',
+      'monospace' => 'Monospace',
+      'condensed' => 'Condensato',
+      'light' => 'Leggero',
+      'arial' => 'Arial',
+      'times' => 'Times',
+      'comic' => 'Comic',
+      'cursive' => 'Corsivo',
+      'thin' => 'Sottile',
+      'serifMono' => 'Serif Mono',
+      _ => 'Predefinito',
     };
   }
 
@@ -1395,21 +1430,12 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        optionChip(
-                          label: 'Predefinito',
-                          selected: epubFontFamily == 'default',
-                          onSelected: () => _changeEpubFontFamily('default'),
-                        ),
-                        optionChip(
-                          label: 'Serif',
-                          selected: epubFontFamily == 'serif',
-                          onSelected: () => _changeEpubFontFamily('serif'),
-                        ),
-                        optionChip(
-                          label: 'Sans',
-                          selected: epubFontFamily == 'sans',
-                          onSelected: () => _changeEpubFontFamily('sans'),
-                        ),
+                        for (final value in _epubFontFamilyValues)
+                          optionChip(
+                            label: _epubFontFamilyLabel(value),
+                            selected: epubFontFamily == value,
+                            onSelected: () => _changeEpubFontFamily(value),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 18),
