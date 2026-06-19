@@ -266,18 +266,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   }
 
   String cleanDocumentTitle(String name) {
-    final dotIndex = name.lastIndexOf('.');
-    final title = dotIndex > 0 ? name.substring(0, dotIndex) : name;
-    final titleWithoutImportSuffix = title.replaceFirst(
-      RegExp(r'[\s_-]*\d{10,}$'),
-      '',
-    );
-    final cleaned = titleWithoutImportSuffix
-        .replaceAll(RegExp(r'[_-]+'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-
-    return cleaned.isEmpty ? name : cleaned;
+    return TextCleanerService.cleanDocumentTitle(name);
   }
 
   String epubDisplayTitle(EpubBookData book, String path) {

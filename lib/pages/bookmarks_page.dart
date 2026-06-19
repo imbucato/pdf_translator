@@ -9,6 +9,7 @@ import '../services/document_import_service.dart';
 import '../services/epub_service.dart';
 import '../services/pdf_thumbnail_service.dart';
 import '../services/storage_service.dart';
+import '../services/text_cleaner_service.dart';
 import '../widgets/document_thumbnail.dart';
 import 'epub_reader_page.dart';
 import 'pdf_translator_page.dart';
@@ -382,18 +383,7 @@ class _BookmarksPageState extends State<BookmarksPage> {
   }
 
   String _cleanDocumentTitle(String name) {
-    final dotIndex = name.lastIndexOf('.');
-    final title = dotIndex > 0 ? name.substring(0, dotIndex) : name;
-    final titleWithoutImportSuffix = title.replaceFirst(
-      RegExp(r'[\s_-]*\d{10,}$'),
-      '',
-    );
-    final cleaned = titleWithoutImportSuffix
-        .replaceAll(RegExp(r'[_-]+'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-
-    return cleaned.isEmpty ? name : cleaned;
+    return TextCleanerService.cleanDocumentTitle(name);
   }
 
   String _cleanDocumentTitleFromPath(String path) {
