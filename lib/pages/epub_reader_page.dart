@@ -6,15 +6,18 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/bookmark_item.dart';
 import '../models/history_item.dart';
 import '../models/recent_document.dart';
+import '../models/wikipedia_result.dart';
 import '../services/ai_service.dart';
 import '../services/document_import_service.dart';
 import '../services/epub_service.dart';
 import '../services/storage_service.dart';
 import '../services/text_cleaner_service.dart';
+import '../services/wikipedia_service.dart';
 import '../widgets/translation_panel.dart';
 import 'bookmark_note_editor_page.dart';
 import 'history_page.dart';
@@ -47,6 +50,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   final AiService _aiService = AiService();
   final StorageService _storageService = StorageService();
   final DocumentImportService _documentImportService = DocumentImportService();
+  final WikipediaService _wikipediaService = WikipediaService();
   final ItemScrollController _itemScrollController = ItemScrollController();
   final ItemPositionsListener _itemPositionsListener =
       ItemPositionsListener.create();
@@ -67,6 +71,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
   String selectedText = '';
   String resultTitle = 'Risultato';
   String resultText = '';
+  String? wikipediaResultUrl;
   String lastAutoTranslateKey = '';
 
   bool isLoading = false;
@@ -237,6 +242,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       isLoading = true;
       resultTitle = 'Credito API';
       resultText = '';
+      wikipediaResultUrl = null;
     });
 
     try {
@@ -251,6 +257,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
             'OpenAI non fornisce un endpoint pubblico semplice per leggere il credito residuo tramite API key.\n'
             'Controlla il saldo dalla dashboard OpenAI.\n\n'
             '$deepSeekBalance';
+        wikipediaResultUrl = null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -258,6 +265,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       setState(() {
         resultTitle = 'Errore credito';
         resultText = e.toString();
+        wikipediaResultUrl = null;
       });
     } finally {
       if (mounted) {
@@ -276,6 +284,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       cache.clear();
       resultText = '';
       resultTitle = 'Risultato';
+      wikipediaResultUrl = null;
       lastAutoTranslateKey = '';
       isLoading = false;
     });
@@ -773,6 +782,95 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     return text.substring(0, 1200);
   }
 
+  String _wikipediaSelectedQuery() {
+    return _wikipediaService.cleanQuery(selectedText);
+  }
+
+  String _formatWikipediaResult(WikipediaResult result) {
+    final languageLabel = result.language == 'it' ? 'italiano' : 'inglese';
+
+    return [
+      result.title,
+      '',
+      result.extract,
+      '',
+      'Lingua: $languageLabel (${result.language})',
+    ].join('\n');
+  }
+
+  String? _validWikipediaUrl(String? url) {
+    final uri = Uri.tryParse(url?.trim() ?? '');
+    if (uri == null || uri.host.isEmpty) return null;
+    if (uri.scheme != 'https' && uri.scheme != 'http') return null;
+
+    return uri.toString();
+  }
+
+  Future<void> _openWikipediaLink() async {
+    final url = _validWikipediaUrl(wikipediaResultUrl);
+    if (url == null) return;
+
+    try {
+      final opened = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (opened) return;
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Impossibile aprire Wikipedia')),
+    );
+  }
+
+  Future<void> _searchWikipedia() async {
+    final query = _wikipediaSelectedQuery();
+    if (query.isEmpty) return;
+
+    _autoTranslateTimer?.cancel();
+    final requestVersion = ++_aiRequestVersion;
+
+    setState(() {
+      isLoading = true;
+      resultTitle = 'Wikipedia';
+      resultText = '';
+      wikipediaResultUrl = null;
+    });
+
+    try {
+      final result = await _wikipediaService.searchSummaryWithFallback(query);
+
+      if (!mounted || requestVersion != _aiRequestVersion) return;
+
+      setState(() {
+        resultTitle = result == null
+            ? 'Wikipedia'
+            : 'Wikipedia - ${result.language.toUpperCase()}';
+        resultText = result == null
+            ? 'Nessuna voce Wikipedia trovata per "$query"'
+            : _formatWikipediaResult(result);
+        wikipediaResultUrl = _validWikipediaUrl(result?.pageUrl);
+      });
+    } catch (e) {
+      if (!mounted || requestVersion != _aiRequestVersion) return;
+
+      setState(() {
+        resultTitle = 'Wikipedia';
+        resultText = e.toString().replaceFirst('Exception: ', '');
+        wikipediaResultUrl = null;
+      });
+    } finally {
+      if (mounted && requestVersion == _aiRequestVersion) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
   double _epubPositionInChapter(double alignment) {
     return (-alignment).clamp(0, double.infinity).toDouble();
   }
@@ -830,6 +928,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       setState(() {
         resultTitle = '$title - $provider - cache';
         resultText = cachedResult;
+        wikipediaResultUrl = null;
       });
 
       await _saveHistoryItem(
@@ -843,12 +942,13 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     }
 
     final prompt = _aiService.buildPrompt(action, text);
-    final requestVersion = _aiRequestVersion;
+    final requestVersion = ++_aiRequestVersion;
 
     setState(() {
       isLoading = true;
       resultTitle = '$title - $provider';
       resultText = '';
+      wikipediaResultUrl = null;
     });
 
     try {
@@ -866,6 +966,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
       setState(() {
         resultText = parsed;
+        wikipediaResultUrl = null;
       });
 
       await _saveHistoryItem(
@@ -880,6 +981,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       setState(() {
         resultTitle = 'Errore';
         resultText = e.toString();
+        wikipediaResultUrl = null;
       });
 
       ScaffoldMessenger.of(
@@ -969,6 +1071,14 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
                   icon: const Icon(Icons.menu_book),
                   label: const Text('Vocabolario'),
                 ),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _searchWikipedia();
+                  },
+                  icon: const Icon(Icons.public),
+                  label: const Text('Wikipedia'),
+                ),
               ],
             ),
           ),
@@ -995,6 +1105,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
 
       resultTitle = '${item.action} - ${item.provider} - $chapterLabel';
       resultText = item.result;
+      wikipediaResultUrl = null;
     });
 
     if (!hasValidChapter) return;
@@ -1012,6 +1123,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       selectedText = '';
       resultText = '';
       resultTitle = 'Risultato';
+      wikipediaResultUrl = null;
       lastAutoTranslateKey = '';
     });
   }
@@ -1846,6 +1958,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       selectedText: selectedText,
       resultText: resultText,
       resultTitle: resultTitle,
+      resultLinkUrl: wikipediaResultUrl,
       isLoading: isLoading,
       currentPage: selectedChapterIndex + 1,
       autoTranslate: autoTranslate,
@@ -1874,7 +1987,9 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       },
       onShowActionPopup: _showActionPopup,
       onAskAi: _askAi,
+      onSearchWikipedia: _searchWikipedia,
       onOpenResult: openResultPage,
+      onOpenResultLink: _openWikipediaLink,
     );
   }
 

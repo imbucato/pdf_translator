@@ -16,7 +16,10 @@ class TranslationPanel extends StatefulWidget {
     required this.onAutoTranslateChanged,
     required this.onShowActionPopup,
     required this.onAskAi,
+    required this.onSearchWikipedia,
     required this.onOpenResult,
+    this.resultLinkUrl,
+    this.onOpenResultLink,
     this.locationLabel,
     this.emptySelectionMessage,
   });
@@ -32,7 +35,10 @@ class TranslationPanel extends StatefulWidget {
   final ValueChanged<bool> onAutoTranslateChanged;
   final VoidCallback onShowActionPopup;
   final ValueChanged<String> onAskAi;
+  final VoidCallback onSearchWikipedia;
   final VoidCallback onOpenResult;
+  final String? resultLinkUrl;
+  final VoidCallback? onOpenResultLink;
   final String? locationLabel;
   final String? emptySelectionMessage;
 
@@ -55,7 +61,10 @@ class _TranslationPanelState extends State<TranslationPanel> {
       widget.onAutoTranslateChanged;
   VoidCallback get onShowActionPopup => widget.onShowActionPopup;
   ValueChanged<String> get onAskAi => widget.onAskAi;
+  VoidCallback get onSearchWikipedia => widget.onSearchWikipedia;
   VoidCallback get onOpenResult => widget.onOpenResult;
+  String? get resultLinkUrl => widget.resultLinkUrl;
+  VoidCallback? get onOpenResultLink => widget.onOpenResultLink;
   String? get locationLabel => widget.locationLabel;
   String? get emptySelectionMessage => widget.emptySelectionMessage;
 
@@ -116,55 +125,51 @@ class _TranslationPanelState extends State<TranslationPanel> {
     final disabled = isLoading;
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Row(
+    return Wrap(
+      spacing: 6,
+      runSpacing: 8,
       children: [
-        const SizedBox(width: 5),
-        Expanded(
-          child: _buildActionButton(
-            context: context,
-            icon: Icons.translate,
-            label: 'Traduci',
-            iconColor: colorScheme.primary,
-            backgroundColor: colorScheme.primaryContainer.withValues(
-              alpha: 0.62,
-            ),
-            onPressed: disabled ? null : () => onAskAi('traduci'),
-          ),
+        _buildActionButton(
+          context: context,
+          icon: Icons.translate,
+          label: 'Traduci',
+          iconColor: colorScheme.primary,
+          backgroundColor: colorScheme.primaryContainer.withValues(alpha: 0.62),
+          onPressed: disabled ? null : () => onAskAi('traduci'),
         ),
-        const SizedBox(width: 5),
-        Expanded(
-          child: _buildActionButton(
-            context: context,
-            icon: Icons.lightbulb_outline,
-            label: 'Spiega',
-            iconColor: const Color(0xFFB45309),
-            backgroundColor: const Color(0xFFFFF7ED),
-            onPressed: disabled ? null : () => onAskAi('spiega'),
-          ),
+        _buildActionButton(
+          context: context,
+          icon: Icons.lightbulb_outline,
+          label: 'Spiega',
+          iconColor: const Color(0xFFB45309),
+          backgroundColor: const Color(0xFFFFF7ED),
+          onPressed: disabled ? null : () => onAskAi('spiega'),
         ),
-        const SizedBox(width: 4),
-        Expanded(
-          child: _buildActionButton(
-            context: context,
-            icon: Icons.summarize,
-            label: 'Sunto',
-            iconColor: const Color(0xFF15803D),
-            backgroundColor: const Color(0xFFF0FDF4),
-            onPressed: disabled ? null : () => onAskAi('riassumi'),
-          ),
+        _buildActionButton(
+          context: context,
+          icon: Icons.summarize,
+          label: 'Sunto',
+          iconColor: const Color(0xFF15803D),
+          backgroundColor: const Color(0xFFF0FDF4),
+          onPressed: disabled ? null : () => onAskAi('riassumi'),
         ),
-        const SizedBox(width: 4),
-        Expanded(
-          child: _buildActionButton(
-            context: context,
-            icon: Icons.menu_book,
-            label: 'Vocab.',
-            iconColor: colorScheme.secondary,
-            backgroundColor: colorScheme.secondaryContainer.withValues(
-              alpha: 0.66,
-            ),
-            onPressed: disabled ? null : () => onAskAi('vocabolario'),
+        _buildActionButton(
+          context: context,
+          icon: Icons.menu_book,
+          label: 'Vocab.',
+          iconColor: colorScheme.secondary,
+          backgroundColor: colorScheme.secondaryContainer.withValues(
+            alpha: 0.66,
           ),
+          onPressed: disabled ? null : () => onAskAi('vocabolario'),
+        ),
+        _buildActionButton(
+          context: context,
+          icon: Icons.public,
+          label: 'Wiki',
+          iconColor: const Color(0xFF0369A1),
+          backgroundColor: const Color(0xFFE0F2FE),
+          onPressed: disabled ? null : onSearchWikipedia,
         ),
       ],
     );
@@ -189,6 +194,9 @@ class _TranslationPanelState extends State<TranslationPanel> {
     if (normalizedTitle.contains('vocabolario')) {
       return Icons.menu_book;
     }
+    if (normalizedTitle.contains('wikipedia')) {
+      return Icons.public;
+    }
 
     return Icons.auto_awesome;
   }
@@ -211,6 +219,9 @@ class _TranslationPanelState extends State<TranslationPanel> {
     }
     if (normalizedTitle.contains('vocabolario')) {
       return colorScheme.secondary;
+    }
+    if (normalizedTitle.contains('wikipedia')) {
+      return const Color(0xFF0369A1);
     }
 
     return colorScheme.primary;
@@ -235,6 +246,9 @@ class _TranslationPanelState extends State<TranslationPanel> {
     if (normalizedTitle.contains('vocabolario')) {
       return colorScheme.secondaryContainer.withValues(alpha: 0.66);
     }
+    if (normalizedTitle.contains('wikipedia')) {
+      return const Color(0xFFE0F2FE);
+    }
 
     return colorScheme.primaryContainer.withValues(alpha: 0.55);
   }
@@ -243,6 +257,10 @@ class _TranslationPanelState extends State<TranslationPanel> {
     final colorScheme = Theme.of(context).colorScheme;
     final accentColor = _resultAccentColor(colorScheme);
     final accentBackground = _resultAccentBackground(colorScheme);
+    final hasResultLink =
+        resultTitle.toLowerCase().contains('wikipedia') &&
+        (resultLinkUrl?.trim().isNotEmpty ?? false) &&
+        onOpenResultLink != null;
 
     if (!isLoading && resultText.isEmpty) return const SizedBox.shrink();
 
@@ -363,6 +381,25 @@ class _TranslationPanelState extends State<TranslationPanel> {
                   ),
                 ),
               ),
+              if (hasResultLink) ...[
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: onOpenResultLink,
+                    icon: const Icon(Icons.open_in_new, size: 18),
+                    label: const Text('Apri su Wikipedia'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: accentColor,
+                      textStyle: Theme.of(context).textTheme.labelLarge
+                          ?.copyWith(
+                            decoration: TextDecoration.underline,
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ],
         ),

@@ -25,6 +25,7 @@ dependencies:
   scrollable_positioned_list: ^0.3.8
   image: ^3.3.0
   syncfusion_pdfviewer_platform_interface: ^33.2.12
+  url_launcher: ^6.3.2
   
 dev_dependencies:
   flutter_test:

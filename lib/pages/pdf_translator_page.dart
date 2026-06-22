@@ -4,14 +4,17 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart' as fp;
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/bookmark_item.dart';
 import '../models/history_item.dart';
 import '../models/recent_document.dart';
+import '../models/wikipedia_result.dart';
 import '../services/ai_service.dart';
 import '../services/document_import_service.dart';
 import '../services/export_service.dart';
 import '../services/storage_service.dart';
+import '../services/wikipedia_service.dart';
 import 'result_page.dart';
 import '../services/text_cleaner_service.dart';
 import '../widgets/translation_panel.dart';
@@ -42,6 +45,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   final StorageService storageService = StorageService();
   final DocumentImportService documentImportService = DocumentImportService();
   final ExportService exportService = ExportService();
+  final WikipediaService wikipediaService = WikipediaService();
   final ValueNotifier<_PdfProgressState> pdfProgressNotifier =
       ValueNotifier<_PdfProgressState>(const _PdfProgressState());
 
@@ -51,6 +55,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
   String selectedText = '';
   String resultText = '';
   String resultTitle = 'Risultato';
+  String? wikipediaResultUrl;
   String historySearch = '';
 
   bool isLoading = false;
@@ -217,6 +222,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
       selectedText = '';
       resultText = '';
       resultTitle = 'Risultato';
+      wikipediaResultUrl = null;
       currentPage = initialPage ?? savedPage;
       lastAutoTranslateKey = '';
     });
@@ -515,6 +521,95 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
     return text.substring(0, 1200);
   }
 
+  String wikipediaSelectedQuery() {
+    return wikipediaService.cleanQuery(selectedText);
+  }
+
+  String formatWikipediaResult(WikipediaResult result) {
+    final languageLabel = result.language == 'it' ? 'italiano' : 'inglese';
+
+    return [
+      result.title,
+      '',
+      result.extract,
+      '',
+      'Lingua: $languageLabel (${result.language})',
+    ].join('\n');
+  }
+
+  String? validWikipediaUrl(String? url) {
+    final uri = Uri.tryParse(url?.trim() ?? '');
+    if (uri == null || uri.host.isEmpty) return null;
+    if (uri.scheme != 'https' && uri.scheme != 'http') return null;
+
+    return uri.toString();
+  }
+
+  Future<void> openWikipediaLink() async {
+    final url = validWikipediaUrl(wikipediaResultUrl);
+    if (url == null) return;
+
+    try {
+      final opened = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (opened) return;
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Impossibile aprire Wikipedia')),
+    );
+  }
+
+  Future<void> searchWikipedia() async {
+    final query = wikipediaSelectedQuery();
+    if (query.isEmpty) return;
+
+    autoTranslateTimer?.cancel();
+    final requestVersion = ++aiRequestVersion;
+
+    setState(() {
+      isLoading = true;
+      resultTitle = 'Wikipedia';
+      resultText = '';
+      wikipediaResultUrl = null;
+    });
+
+    try {
+      final result = await wikipediaService.searchSummaryWithFallback(query);
+
+      if (!mounted || requestVersion != aiRequestVersion) return;
+
+      setState(() {
+        resultTitle = result == null
+            ? 'Wikipedia'
+            : 'Wikipedia - ${result.language.toUpperCase()}';
+        resultText = result == null
+            ? 'Nessuna voce Wikipedia trovata per "$query"'
+            : formatWikipediaResult(result);
+        wikipediaResultUrl = validWikipediaUrl(result?.pageUrl);
+      });
+    } catch (e) {
+      if (!mounted || requestVersion != aiRequestVersion) return;
+
+      setState(() {
+        resultTitle = 'Wikipedia';
+        resultText = e.toString().replaceFirst('Exception: ', '');
+        wikipediaResultUrl = null;
+      });
+    } finally {
+      if (mounted && requestVersion == aiRequestVersion) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
   Future<void> askAi(String action) async {
     final text = limitedSelectedText();
     if (text.isEmpty) return;
@@ -532,18 +627,20 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
       setState(() {
         resultTitle = '$title Â· $provider Â· cache';
         resultText = cache[cacheKey]!;
+        wikipediaResultUrl = null;
       });
 
       return;
     }
 
     final prompt = aiService.buildPrompt(action, text);
-    final requestVersion = aiRequestVersion;
+    final requestVersion = ++aiRequestVersion;
 
     setState(() {
       isLoading = true;
       resultTitle = '$title Â· $provider';
       resultText = '';
+      wikipediaResultUrl = null;
     });
 
     try {
@@ -571,6 +668,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
 
       setState(() {
         resultText = parsed;
+        wikipediaResultUrl = null;
         history.insert(0, item);
       });
 
@@ -581,6 +679,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
       setState(() {
         resultTitle = 'Errore';
         resultText = e.toString();
+        wikipediaResultUrl = null;
       });
     } finally {
       if (mounted && requestVersion == aiRequestVersion) {
@@ -666,6 +765,14 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
                   icon: const Icon(Icons.menu_book),
                   label: const Text('Vocabolario'),
                 ),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    searchWikipedia();
+                  },
+                  icon: const Icon(Icons.public),
+                  label: const Text('Wikipedia'),
+                ),
               ],
             ),
           ),
@@ -679,6 +786,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
       isLoading = true;
       resultTitle = 'Credito API';
       resultText = '';
+      wikipediaResultUrl = null;
     });
 
     try {
@@ -691,11 +799,13 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
             'OpenAI non fornisce un endpoint pubblico semplice per leggere il credito residuo tramite API key.\n'
             'Controlla il saldo dalla dashboard OpenAI.\n\n'
             '$deepSeekBalance';
+        wikipediaResultUrl = null;
       });
     } catch (e) {
       setState(() {
         resultTitle = 'Errore credito';
         resultText = e.toString();
+        wikipediaResultUrl = null;
       });
     } finally {
       setState(() {
@@ -755,6 +865,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
               resultTitle =
                   '${item.action} · ${item.provider} - pagina ${item.page}';
               resultText = item.result;
+              wikipediaResultUrl = null;
             });
             _updatePdfProgressNotifier();
 
@@ -814,6 +925,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
       cache.clear();
       resultText = '';
       resultTitle = 'Risultato';
+      wikipediaResultUrl = null;
       lastAutoTranslateKey = '';
       isLoading = false;
     });
@@ -832,6 +944,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
       selectedText = '';
       resultText = '';
       resultTitle = 'Risultato';
+      wikipediaResultUrl = null;
       lastAutoTranslateKey = '';
     });
   }
@@ -970,6 +1083,7 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
               selectedText: selectedText,
               resultText: resultText,
               resultTitle: resultTitle,
+              resultLinkUrl: wikipediaResultUrl,
               isLoading: isLoading,
               currentPage: progressState.currentPage,
               autoTranslate: autoTranslate,
@@ -996,7 +1110,9 @@ class _PdfTranslatorPageState extends State<PdfTranslatorPage> {
               },
               onShowActionPopup: showActionPopup,
               onAskAi: askAi,
+              onSearchWikipedia: searchWikipedia,
               onOpenResult: openResult,
+              onOpenResultLink: openWikipediaLink,
             );
           },
         ),
